@@ -1,5 +1,9 @@
 # OpenClaw Railway Template
 
+[![CI](https://github.com/Timboslice212/openclaw-railway-template/actions/workflows/ci.yml/badge.svg)](https://github.com/Timboslice212/openclaw-railway-template/actions/workflows/ci.yml)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-2026.9.2-7c8cff)](https://github.com/openclaw/openclaw/releases/tag/v2026.9.2)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 A secure, low-maintenance Railway deployment for the official [OpenClaw](https://github.com/openclaw/openclaw) image. It adds a protected browser control center for setup, diagnostics, device pairing, and recovery without modifying OpenClaw itself.
 
 > Current tested OpenClaw release: **2026.9.2**
