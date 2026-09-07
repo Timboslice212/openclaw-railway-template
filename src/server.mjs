@@ -218,6 +218,8 @@ function proxyHttp(req, res, runtime) {
 
 function proxyUpgrade(req, socket, head, runtime) {
   const headers = proxyHeaders(req, runtime);
+  headers.connection = "Upgrade";
+  headers.upgrade = "websocket";
   const upstream = http.request({ hostname: runtime.gatewayHost, port: runtime.gatewayPort, path: req.url, method: req.method, headers });
   upstream.on("upgrade", (response, upstreamSocket, upstreamHead) => {
     let raw = `HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\n`;
