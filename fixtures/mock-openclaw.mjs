@@ -22,11 +22,15 @@ if (process.argv.includes("status") || process.argv.includes("list") || process.
 
 const index = process.argv.indexOf("--port");
 const port = Number.parseInt(process.argv[index + 1], 10);
-http.createServer((req, res) => {
+const server = http.createServer((req, res) => {
   if (["/startupz", "/healthz", "/readyz"].includes(req.url)) {
     res.writeHead(200, { "content-type": "application/json" });
     return res.end('{"ok":true}');
   }
   res.writeHead(200, { "content-type": "text/plain" });
   res.end("mock gateway");
-}).listen(port, "127.0.0.1");
+});
+server.on("upgrade", (_req, socket) => {
+  socket.write("HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n");
+});
+server.listen(port, "127.0.0.1");
