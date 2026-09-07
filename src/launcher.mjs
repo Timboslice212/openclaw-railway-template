@@ -2,7 +2,8 @@ import fs from "node:fs";
 
 const stateDir = process.env.OPENCLAW_STATE_DIR || "/data/.openclaw";
 const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || "/data/workspace";
-const configDir = `${process.env.XDG_CONFIG_HOME || "/data/.config"}/openclaw`;
+const configRoot = process.env.XDG_CONFIG_HOME || "/data/.config";
+const configDir = `${configRoot}/openclaw`;
 const volumeRoot = process.env.OPENCLAW_VOLUME_ROOT || "/data";
 
 const describe = (directory) => {
@@ -23,7 +24,7 @@ if (process.getuid?.() === 0) {
   fs.chownSync(volumeRoot, 1000, 1000);
   fs.chmodSync(volumeRoot, 0o700);
 
-  for (const directory of [stateDir, workspaceDir, configDir]) {
+  for (const directory of [stateDir, workspaceDir, configRoot, configDir]) {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     fs.chownSync(directory, 1000, 1000);
     fs.chmodSync(directory, 0o700);
@@ -37,7 +38,7 @@ if (process.getuid?.() === 0) {
 }
 
 console.log(`[launcher] runtime uid=${process.getuid?.()} gid=${process.getgid?.()}`);
-for (const directory of [volumeRoot, stateDir, workspaceDir, configDir]) {
+for (const directory of [volumeRoot, stateDir, workspaceDir, configRoot, configDir]) {
   console.log(`[launcher] ${describe(directory)}`);
 }
 
