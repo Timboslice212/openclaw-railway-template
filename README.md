@@ -54,6 +54,7 @@ For the first test deployment:
 | `XDG_CONFIG_HOME` | No | `/data/.config` | Persistent auth-profile configuration |
 | `XDG_CACHE_HOME` | No | `/data/.cache` | Writable OpenClaw and SQLite worker cache |
 | `OPENCLAW_INTERNAL_GATEWAY_PORT` | No | `18789` | Private loopback Gateway port |
+| `OPENCLAW_PUBLIC_ORIGIN` | No | `https://$RAILWAY_PUBLIC_DOMAIN` | Override the exact public origin, mainly for a custom domain |
 | `OPENCLAW_VOLUME_ROOT` | No | `/data` | Railway volume root initialized before dropping privileges |
 | `PORT` | Injected by Railway | `8080` | Public wrapper port |
 
@@ -84,6 +85,7 @@ Change `OPENCLAW_VERSION` in the Dockerfile only after reviewing the upstream st
 - Treat both `SETUP_PASSWORD` and `OPENCLAW_GATEWAY_TOKEN` as administrator credentials.
 - The Gateway only binds to `127.0.0.1` inside the container.
 - Both HTTP and WebSocket access require the wrapper password; Basic credentials are stripped before proxying to OpenClaw.
+- The Railway public origin is registered automatically in OpenClaw's exact Control UI origin allowlist. Set `OPENCLAW_PUBLIC_ORIGIN` when using a custom domain.
 - Setup APIs expose only a fixed allowlist of commands; there is no browser shell.
 - Back up `/data` before upgrading or changing configuration.
 - A Railway volume is persistent storage, not an independent backup.
