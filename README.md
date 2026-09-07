@@ -13,6 +13,7 @@ A secure, low-maintenance Railway deployment for the official [OpenClaw](https:/
 - Uses the official version-pinned OpenClaw container instead of rebuilding the full source tree on Railway.
 - Starts the public wrapper immediately, so configuration problems produce useful diagnostics instead of an unexplained Railway 502.
 - Keeps the Gateway on container loopback and proxies HTTP/WebSocket traffic through the wrapper.
+- Configures the wrapper as the Gateway's only trusted proxy and rebuilds forwarded-client headers instead of trusting browser input.
 - Persists OpenClaw state, auth profiles, sessions, channel data, and workspace files on `/data`.
 - Prepares Railway's root-owned volume, then drops permanently to the non-root `node` user before starting the web service or Gateway.
 - Includes separate wrapper liveness (`/healthz`) and Gateway readiness (`/readyz`) probes.
@@ -82,6 +83,7 @@ Change `OPENCLAW_VERSION` in the Dockerfile only after reviewing the upstream st
 
 - Treat both `SETUP_PASSWORD` and `OPENCLAW_GATEWAY_TOKEN` as administrator credentials.
 - The Gateway only binds to `127.0.0.1` inside the container.
+- Both HTTP and WebSocket access require the wrapper password; Basic credentials are stripped before proxying to OpenClaw.
 - Setup APIs expose only a fixed allowlist of commands; there is no browser shell.
 - Back up `/data` before upgrading or changing configuration.
 - A Railway volume is persistent storage, not an independent backup.
