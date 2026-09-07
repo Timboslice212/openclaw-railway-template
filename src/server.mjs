@@ -5,7 +5,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { dashboardHtml, errorHtml } from "./dashboard.mjs";
+import { dashboardHtml, errorHtml, loginHtml } from "./dashboard.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const redact = (text, secrets = []) => {
@@ -52,6 +52,17 @@ async function readJson(req, maxBytes = 16_384) {
   }
   if (!chunks.length) return {};
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+async function readForm(req, maxBytes = 8_192) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > maxBytes) throw new Error("Request body is too large");
+    chunks.push(chunk);
+  }
+  return new URLSearchParams(Buffer.concat(chunks).toString("utf8"));
 }
 
 export function createRuntime(env = process.env) {
@@ -181,6 +192,9 @@ async function restartGateway(runtime) {
 
 function authorized(req, runtime) {
   if (!runtime.setupPassword) return false;
+  const cookies = Object.fromEntries(String(req.headers.cookie || "").split(";").map((part) => part.trim().split(/=(.*)/s).slice(0, 2)).filter(([name]) => name));
+  const expectedSession = crypto.createHmac("sha256", runtime.setupPassword).update("openclaw-railway-session-v1").digest("hex");
+  if (cookies.oc_setup_session && safeEqual(cookies.oc_setup_session, expectedSession)) return true;
   const [scheme, encoded] = String(req.headers.authorization || "").split(" ");
   if (scheme !== "Basic" || !encoded) return false;
   try {
@@ -190,14 +204,15 @@ function authorized(req, runtime) {
   } catch { return false; }
 }
 
-function challenge(res) {
-  res.writeHead(401, { "www-authenticate": 'Basic realm="OpenClaw Railway"', "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" });
-  res.end("Authentication required\n");
+function challenge(req, res) {
+  if (String(req.url || "").startsWith("/setup/api/")) return json(res, 401, { ok: false, error: "Setup session expired" });
+  res.writeHead(302, { location: `/login?next=${encodeURIComponent(String(req.url || "/setup"))}`, "cache-control": "no-store" });
+  res.end();
 }
 
 function proxyHeaders(req, runtime) {
   const headers = { ...req.headers, host: `${runtime.gatewayHost}:${runtime.gatewayPort}` };
-  for (const name of ["authorization", "proxy-authorization", "connection", "forwarded", "x-forwarded-for", "x-real-ip"]) {
+  for (const name of ["authorization", "proxy-authorization", "cookie", "connection", "forwarded", "x-forwarded-for", "x-real-ip"]) {
     delete headers[name];
   }
 
@@ -241,6 +256,23 @@ function proxyUpgrade(req, socket, head, runtime) {
 export async function startServer(runtime = createRuntime()) {
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+    if (url.pathname === "/login" && req.method === "GET") {
+      if (authorized(req, runtime)) { res.writeHead(302, { location: "/setup", "cache-control": "no-store" }); return res.end(); }
+      return html(res, 200, loginHtml());
+    }
+    if (url.pathname === "/login" && req.method === "POST") {
+      try {
+        const form = await readForm(req);
+        if (!safeEqual(form.get("password") || "", runtime.setupPassword)) return html(res, 401, loginHtml("Incorrect setup password."));
+        const session = crypto.createHmac("sha256", runtime.setupPassword).update("openclaw-railway-session-v1").digest("hex");
+        res.writeHead(302, { location: "/setup", "set-cookie": `oc_setup_session=${session}; Path=/; Max-Age=43200; HttpOnly; Secure; SameSite=Strict`, "cache-control": "no-store" });
+        return res.end();
+      } catch (error) { return html(res, 400, loginHtml(String(error))); }
+    }
+    if (url.pathname === "/logout") {
+      res.writeHead(302, { location: "/login", "set-cookie": "oc_setup_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict", "cache-control": "no-store" });
+      return res.end();
+    }
     if (url.pathname === "/healthz") {
       return json(res, 200, { ok: true, wrapper: "ready", gateway: await gatewayReady(runtime), version: runtime.version });
     }
@@ -253,7 +285,7 @@ export async function startServer(runtime = createRuntime()) {
     }
     if (url.pathname.startsWith("/setup")) {
       if (!runtime.setupPassword) return html(res, 503, errorHtml("SETUP_PASSWORD is required", "Add SETUP_PASSWORD as a Railway service variable, then redeploy. The control center is intentionally locked until this secret exists."));
-      if (!authorized(req, runtime)) return challenge(res);
+      if (!authorized(req, runtime)) return challenge(req, res);
       if (req.method === "GET" && url.pathname === "/setup") return html(res, 200, dashboardHtml());
       if (req.method === "GET" && url.pathname === "/setup/api/token") return json(res, 200, { ok: true, token: runtime.gatewayToken });
       if (req.method === "GET" && url.pathname === "/setup/api/status") {
@@ -298,7 +330,7 @@ export async function startServer(runtime = createRuntime()) {
       }
       return json(res, 404, { ok: false, error: "Not found" });
     }
-    if (!authorized(req, runtime)) return challenge(res);
+    if (!authorized(req, runtime)) return challenge(req, res);
     if (!(await gatewayReady(runtime))) {
       try { await startGateway(runtime); } catch {}
     }
@@ -308,7 +340,7 @@ export async function startServer(runtime = createRuntime()) {
 
   server.on("upgrade", async (req, socket, head) => {
     if (!authorized(req, runtime)) {
-      return socket.end('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="OpenClaw Railway"\r\nConnection: close\r\n\r\n');
+      return socket.end("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
     }
     if (!(await gatewayReady(runtime))) { try { await startGateway(runtime); } catch {} }
     if (!(await gatewayReady(runtime))) return socket.destroy();
