@@ -15,13 +15,15 @@ RUN chmod 755 /opt/openclaw-railway/src/healthcheck.mjs \
     /opt/openclaw-railway/src/launcher.mjs
 
 ENV NODE_ENV=production \
+    HOME=/home/node \
     PORT=8080 \
     OPENCLAW_INTERNAL_GATEWAY_HOST=127.0.0.1 \
     OPENCLAW_INTERNAL_GATEWAY_PORT=18789 \
     OPENCLAW_VOLUME_ROOT=/data \
     OPENCLAW_STATE_DIR=/data/.openclaw \
     OPENCLAW_WORKSPACE_DIR=/data/workspace \
-    XDG_CONFIG_HOME=/data/.config
+    XDG_CONFIG_HOME=/data/.config \
+    XDG_CACHE_HOME=/data/.cache
 
 EXPOSE 8080
 

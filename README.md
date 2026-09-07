@@ -51,6 +51,7 @@ For the first test deployment:
 | `OPENCLAW_STATE_DIR` | No | `/data/.openclaw` | Persistent OpenClaw state |
 | `OPENCLAW_WORKSPACE_DIR` | No | `/data/workspace` | Persistent agent workspace |
 | `XDG_CONFIG_HOME` | No | `/data/.config` | Persistent auth-profile configuration |
+| `XDG_CACHE_HOME` | No | `/data/.cache` | Writable OpenClaw and SQLite worker cache |
 | `OPENCLAW_INTERNAL_GATEWAY_PORT` | No | `18789` | Private loopback Gateway port |
 | `OPENCLAW_VOLUME_ROOT` | No | `/data` | Railway volume root initialized before dropping privileges |
 | `PORT` | Injected by Railway | `8080` | Public wrapper port |
