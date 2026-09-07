@@ -1,97 +1,99 @@
-# OpenClaw Railway Template
+# OpenClaw on Railway
 
 [![CI](https://github.com/Timboslice212/openclaw-railway-template/actions/workflows/ci.yml/badge.svg)](https://github.com/Timboslice212/openclaw-railway-template/actions/workflows/ci.yml)
 [![OpenClaw](https://img.shields.io/badge/OpenClaw-2026.9.2-7c8cff)](https://github.com/openclaw/openclaw/releases/tag/v2026.9.2)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A secure, low-maintenance Railway deployment for the official [OpenClaw](https://github.com/openclaw/openclaw) image. It adds a protected browser control center for setup, diagnostics, device pairing, and recovery without modifying OpenClaw itself.
+A secure, version-pinned, guided deployment of the latest stable [OpenClaw](https://github.com/openclaw/openclaw) release on Railway.
 
-> Current tested OpenClaw release: **2026.9.2**
+> Tested upstream release: **OpenClaw 2026.9.2**
 
-## Why this template
+## What makes this template different
 
-- Uses the official version-pinned OpenClaw container instead of rebuilding the full source tree on Railway.
-- Starts the public wrapper immediately, so configuration problems produce useful diagnostics instead of an unexplained Railway 502.
-- Keeps the Gateway on container loopback and proxies HTTP/WebSocket traffic through the wrapper.
-- Configures the wrapper as the Gateway's only trusted proxy and rebuilds forwarded-client headers instead of trusting browser input.
-- Persists OpenClaw state, auth profiles, sessions, channel data, and workspace files on `/data`.
-- Prepares Railway's root-owned volume, then drops permanently to the non-root `node` user before starting the web service or Gateway.
-- Includes separate wrapper liveness (`/healthz`) and Gateway readiness (`/readyz`) probes.
-- Never prints the Gateway token in deployment logs.
+- A real browser first-run wizard: provider, model, optional channel, validation, and launch.
+- No Railway terminal, copied Gateway token, request ID, or manual device-pairing step.
+- Official OpenClaw one-time browser bootstrap for a durable administrator device credential.
+- Live provider probe before setup is marked complete.
+- Optional Telegram or Discord configuration and credential probe.
+- A required `/data` volume; the wizard blocks instead of incorrectly calling ephemeral storage persistent.
+- Official OpenClaw image pinned to a reviewed stable release, never a moving `latest` tag.
+- Loopback-only Gateway behind a hardened HTTP/WebSocket proxy; OpenClaw's signed device identity protects the dashboard.
+- Non-root application and Gateway processes after safe volume initialization.
+- Explicit liveness and readiness endpoints, bounded commands, redacted diagnostics, and no secret echo.
 
-## Deploy on Railway
+## One-click user journey
 
-The public one-click button will be added after the clean deployment test is complete.
+1. Click **Deploy on Railway** from the published Railway Template.
+2. Choose one strong `SETUP_PASSWORD` in Railway's deployment form.
+3. Open the generated public domain and sign in with that password.
+4. Select an AI provider and optionally override its default model.
+5. Paste the provider API key and optionally connect Telegram or Discord.
+6. The wizard applies the official non-interactive OpenClaw setup, validates the config, makes a small live provider probe, probes the optional channel, starts the Gateway, and waits for readiness.
+7. Click **Launch secure dashboard**. OpenClaw issues a short-lived, single-use browser bootstrap and grants that browser its own durable administrator credential.
 
-For the first test deployment:
+After first run, provider, model, agent, skill, and channel changes belong in the official OpenClaw dashboard. The setup page remains available for status and recovery diagnostics.
 
-1. Create a Railway project from this GitHub repository.
-2. Add a persistent volume mounted at `/data`.
-3. Add `SETUP_PASSWORD` with a strong random value.
-4. Optionally add `OPENCLAW_GATEWAY_TOKEN` with a second strong random value. If omitted, the wrapper generates it once and stores it on the volume.
-5. Generate a Railway public domain targeting port `8080`.
-6. Open the domain. `/` redirects to the protected `/setup` control center.
-7. Sign in on the branded setup page using `SETUP_PASSWORD`. The wrapper creates a secure HttpOnly session cookie; browser-native Basic Auth prompts are not used.
-8. Click **Start OpenClaw** to copy the Gateway token and open `/openclaw` in one action, then paste it when the official UI asks you to connect.
-9. For a new browser profile, return to `/setup` and click **Approve browser** once, then reconnect. No Railway shell or CLI command is required.
+## Railway template resources
 
-## Required Railway settings
+The published Railway Template snapshot creates these resources automatically:
 
-| Setting | Value |
+| Resource | Configuration |
 | --- | --- |
-| Volume mount | `/data` |
-| Public networking target port | `8080` |
-| Health check | `/healthz` |
-| Restart policy | On failure, maximum 5 retries |
+| Service | `openclaw`, built from this repository's Dockerfile |
+| Volume | `openclaw-data`, mounted at `/data` |
+| Public networking | Railway-generated HTTPS domain targeting port `8080` |
+| Health check | `/healthz`, 300-second deployment timeout |
+| Setup secret | `SETUP_PASSWORD`, required in the deploy form |
 
-## Variables
+The repository also includes Railway's current Infrastructure-as-Code definition at `.railway/railway.ts`. The former `railway.toml` approach is intentionally not used because Railway no longer enables legacy Config-as-Code for new services and retires it on December 1, 2026.
 
-| Variable | Required | Default | Purpose |
-| --- | --- | --- | --- |
-| `SETUP_PASSWORD` | Yes | none | Protects the control center and proxied dashboard HTTP routes |
-| `OPENCLAW_GATEWAY_TOKEN` | Recommended | generated and persisted | OpenClaw Gateway admin token |
-| `OPENCLAW_STATE_DIR` | No | `/data/.openclaw` | Persistent OpenClaw state |
-| `OPENCLAW_WORKSPACE_DIR` | No | `/data/workspace` | Persistent agent workspace |
-| `XDG_CONFIG_HOME` | No | `/data/.config` | Persistent auth-profile configuration |
-| `XDG_CACHE_HOME` | No | `/data/.cache` | Writable OpenClaw and SQLite worker cache |
-| `OPENCLAW_INTERNAL_GATEWAY_PORT` | No | `18789` | Private loopback Gateway port |
-| `OPENCLAW_PUBLIC_ORIGIN` | No | `https://$RAILWAY_PUBLIC_DOMAIN` | Override the exact public origin, mainly for a custom domain |
-| `OPENCLAW_VOLUME_ROOT` | No | `/data` | Railway volume root initialized before dropping privileges |
-| `PORT` | Injected by Railway | `8080` | Public wrapper port |
+## Supported first-run providers
 
-Provider keys such as `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` may be stored as Railway variables. They are inherited by the Gateway process and are not returned by the control-center APIs.
+| Provider | Credential |
+| --- | --- |
+| OpenAI | API key |
+| Anthropic | API key |
+| Google Gemini | API key |
+| OpenRouter | API key |
+| xAI (Grok) | API key |
 
-## Routes
+OAuth and additional providers remain available after launch in OpenClaw. Telegram and Discord are the initial one-click channel options; more channel integrations remain available in the dashboard.
 
-- `/setup` — password-protected control center.
-- `/openclaw` — official OpenClaw Control UI through the wrapper.
-- `/healthz` — wrapper liveness; safe for Railway health checks.
-- `/readyz` — Gateway startup readiness; returns HTTP 503 until OpenClaw is ready.
+## Runtime paths
 
-## Local wrapper tests
+| Path | Purpose |
+| --- | --- |
+| `/setup` | Protected first-run and recovery interface |
+| `/openclaw/` | Official OpenClaw Control UI through the wrapper |
+| `/healthz` | Wrapper liveness for Railway deployment health |
+| `/readyz` | Gateway readiness; returns 503 until the Gateway is ready |
 
-The tests use a tiny mock Gateway and do not download OpenClaw:
+OpenClaw state is stored below `/data`: configuration and credentials in `/data/.openclaw`, workspace files in `/data/workspace`, and supporting config/cache directories in `/data/.config` and `/data/.cache`.
+
+## Development checks
+
+The test suite uses a local mock Gateway and never calls an AI provider:
 
 ```bash
 npm run check
 npm test
 ```
 
-## Updating OpenClaw
+The suite covers setup authentication, persistent-volume detection, first-run application, browser bootstrap rewriting, HTTP proxying, and WebSocket protection.
 
-Change `OPENCLAW_VERSION` in the Dockerfile only after reviewing the upstream stable release and testing a fresh Railway deployment plus a deployment with an existing `/data` volume. Do not point production templates at a moving `main` build.
+## Release policy
+
+Upstream upgrades are deliberate. Update `OPENCLAW_VERSION` in `Dockerfile`, run the local suite, test a fresh Railway deployment, test an upgrade with an existing `/data` volume, and only then update the public template.
 
 ## Security notes
 
-- Treat both `SETUP_PASSWORD` and `OPENCLAW_GATEWAY_TOKEN` as administrator credentials.
-- The Gateway only binds to `127.0.0.1` inside the container.
-- Both HTTP and WebSocket access require the wrapper password; Basic credentials are stripped before proxying to OpenClaw.
-- Interactive browser access uses a 12-hour HttpOnly, Secure, SameSite session cookie derived from `SETUP_PASSWORD`, preventing recurring browser sign-in dialogs. Basic credentials remain accepted for scripted diagnostics but are never forwarded upstream.
-- The Railway public origin is registered automatically in OpenClaw's exact Control UI origin allowlist. Set `OPENCLAW_PUBLIC_ORIGIN` when using a custom domain.
-- Setup APIs expose only a fixed allowlist of commands; there is no browser shell.
-- Back up `/data` before upgrading or changing configuration.
-- A Railway volume is persistent storage, not an independent backup.
+- Treat `SETUP_PASSWORD`, provider keys, channel tokens, and `/data` backups as administrator secrets.
+- The setup password is collected by Railway before deployment. Setting it on an unauthenticated public first-run page would create a first-visitor account-takeover race.
+- Provider credentials are submitted only over HTTPS, passed to the official onboarding command without being logged, and persisted in OpenClaw's private state.
+- The generated Gateway token is stored with restrictive permissions and is never returned by the setup API or shown in the browser.
+- The Gateway listens only on `127.0.0.1`; the public wrapper rebuilds trusted proxy headers. After first run, the official OpenClaw signed-device credential—not a recurring wrapper login—protects dashboard access.
+- A Railway volume provides persistence, not an independent backup. Back up `/data` before major upgrades.
 
-## License
+## License and trademarks
 
-The integration code in this repository is MIT licensed. OpenClaw is a separate upstream project and retains its own license and trademarks.
+The Railway integration code in this repository is MIT licensed. OpenClaw is a separate upstream project and retains its own license and trademarks. This repository is not an official OpenClaw distribution.

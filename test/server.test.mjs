@@ -50,6 +50,7 @@ test("control center starts, protects setup, and proxies to gateway", async () =
   process.env.SETUP_PASSWORD = "test-password";
   process.env.OPENCLAW_GATEWAY_TOKEN = "test-gateway-token";
   process.env.RAILWAY_PUBLIC_DOMAIN = "example.test";
+  process.env.RAILWAY_VOLUME_MOUNT_PATH = "/data";
 
   const runtime = createRuntime(process.env);
   runtime.publicPort = 0;
@@ -78,7 +79,51 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     const auth = `Basic ${Buffer.from("admin:test-password").toString("base64")}`;
     const setup = await fetch(`${base}/setup`, { headers: { authorization: auth } });
     assert.equal(setup.status, 200);
-    assert.match(await setup.text(), /OpenClaw is under control/);
+    assert.match(await setup.text(), /OpenClaw, ready in one guided setup/);
+
+    const status = await fetch(`${base}/setup/api/status`, { headers: { cookie: sessionCookie } });
+    assert.equal(status.status, 200);
+    assert.equal((await status.json()).storage.persistent, true);
+    assert.equal(await websocketStatus(port), 403);
+
+    const tokenLeak = await fetch(`${base}/setup/api/token`, { headers: { cookie: sessionCookie } });
+    assert.equal(tokenLeak.status, 404);
+
+    const csrf = await fetch(`${base}/setup/api/install`, {
+      method: "POST",
+      headers: { cookie: sessionCookie, origin: "https://attacker.example", "content-type": "application/json" },
+      body: JSON.stringify({ provider: "openai", apiKey: "sk-test-provider-key", channel: "none" }),
+    });
+    assert.equal(csrf.status, 403);
+
+    runtime.volumeMountPath = "";
+    const ephemeral = await fetch(`${base}/setup/api/install`, {
+      method: "POST",
+      headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" },
+      body: JSON.stringify({ provider: "openai", apiKey: "sk-test-provider-key", channel: "none" }),
+    });
+    assert.equal(ephemeral.status, 400);
+    assert.match((await ephemeral.json()).error, /volume mounted at \/data/i);
+    runtime.volumeMountPath = "/data";
+
+    const installed = await fetch(`${base}/setup/api/install`, {
+      method: "POST",
+      headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" },
+      body: JSON.stringify({ provider: "openai", apiKey: "sk-test-provider-key", model: "openai/mock-model", channel: "none" }),
+    });
+    const installedText = await installed.text();
+    assert.equal(installed.status, 200, installedText);
+
+    const handoffResponse = await fetch(`${base}/setup/api/handoff`, {
+      method: "POST", headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" }, body: "{}",
+    });
+    const handoffText = await handoffResponse.text();
+    assert.equal(handoffResponse.status, 200, handoffText);
+    const handoff = JSON.parse(handoffText);
+    const handoffUrl = new URL(handoff.url);
+    assert.equal(handoffUrl.origin, "https://example.test");
+    assert.equal(handoffUrl.pathname, "/openclaw/");
+    assert.equal(new URLSearchParams(handoffUrl.hash.slice(1)).get("gatewayUrl"), "wss://example.test/openclaw");
 
     const devices = await fetch(`${base}/setup/api/devices`, { headers: { authorization: auth } });
     assert.equal(devices.status, 200);
@@ -93,7 +138,7 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     assert.equal(proxied.status, 200);
     assert.equal(await proxied.text(), "mock gateway");
 
-    assert.equal(await websocketStatus(port), 401);
+    assert.equal(await websocketStatus(port), 101);
     assert.equal(await websocketStatus(port, auth), 101);
   } finally {
     await app.close();
