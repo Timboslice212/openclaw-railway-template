@@ -5,7 +5,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 
+import { dashboardHtml } from "../src/dashboard.mjs";
 import { createRuntime, parsePort, safeEqual, startServer } from "../src/server.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -35,6 +37,15 @@ test("port parsing and constant-time credential comparison", () => {
   assert.equal(parsePort("invalid", 3000), 3000);
   assert.equal(safeEqual("secret", "secret"), true);
   assert.equal(safeEqual("secret", "wrong"), false);
+});
+
+test("setup page ships valid JavaScript and never falls back to a GET form", () => {
+  const page = dashboardHtml();
+  const script = page.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+  assert.ok(script, "setup page must include its client script");
+  assert.doesNotThrow(() => new vm.Script(script));
+  assert.match(page, /<form id="setupForm" method="post" action="\/setup">/);
+  assert.doesNotMatch(page, /<form id="setupForm">/);
 });
 
 test("control center starts, protects setup, and proxies to gateway", async () => {
