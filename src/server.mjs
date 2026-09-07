@@ -114,11 +114,23 @@ async function gatewayReady(runtime) {
   } catch { return false; }
 }
 
+async function configureGateway(runtime) {
+  const settings = [
+    ["gateway.trustedProxies", '["127.0.0.1"]', "--strict-json"],
+    ["gateway.controlUi.basePath", "/openclaw"],
+  ];
+  for (const args of settings) {
+    const result = await command(runtime, ["config", "set", ...args], { timeoutMs: 30_000 });
+    if (result.code !== 0) throw new Error(`Could not configure ${args[0]}: ${result.output}`);
+  }
+}
+
 async function startGateway(runtime) {
   if (runtime.gateway && runtime.gateway.exitCode === null) return;
   if (runtime.gatewayStart) return runtime.gatewayStart;
   runtime.gatewayStart = (async () => {
     runtime.lastGatewayError = null;
+    await configureGateway(runtime);
     const executable = process.env.OPENCLAW_NODE || "node";
     const entry = process.env.OPENCLAW_ENTRY || "/app/openclaw.mjs";
     const args = [entry, "gateway", "run", "--allow-unconfigured", "--bind", "loopback", "--port", String(runtime.gatewayPort), "--auth", "token", "--token", runtime.gatewayToken];
@@ -178,9 +190,24 @@ function challenge(res) {
   res.end("Authentication required\n");
 }
 
-function proxyHttp(req, res, runtime) {
+function proxyHeaders(req, runtime) {
   const headers = { ...req.headers, host: `${runtime.gatewayHost}:${runtime.gatewayPort}` };
-  delete headers.connection;
+  for (const name of ["authorization", "proxy-authorization", "connection", "forwarded", "x-forwarded-for", "x-real-ip"]) {
+    delete headers[name];
+  }
+
+  // The wrapper is the Gateway's only trusted proxy. Rebuild attribution from
+  // the TCP peer instead of forwarding client-controlled proxy headers.
+  const peer = String(req.socket.remoteAddress || "").replace(/^::ffff:/, "");
+  headers["x-forwarded-for"] = peer && peer !== "127.0.0.1" && peer !== "::1" ? peer : "192.0.2.1";
+  headers["x-forwarded-host"] = String(req.headers.host || "");
+  headers["x-forwarded-proto"] = "https";
+  if (headers.origin) headers.origin = `http://${runtime.gatewayHost}:${runtime.gatewayPort}`;
+  return headers;
+}
+
+function proxyHttp(req, res, runtime) {
+  const headers = proxyHeaders(req, runtime);
   const upstream = http.request({ hostname: runtime.gatewayHost, port: runtime.gatewayPort, path: req.url, method: req.method, headers }, (upstreamRes) => {
     res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
     upstreamRes.pipe(res);
@@ -190,7 +217,7 @@ function proxyHttp(req, res, runtime) {
 }
 
 function proxyUpgrade(req, socket, head, runtime) {
-  const headers = { ...req.headers, host: `${runtime.gatewayHost}:${runtime.gatewayPort}` };
+  const headers = proxyHeaders(req, runtime);
   const upstream = http.request({ hostname: runtime.gatewayHost, port: runtime.gatewayPort, path: req.url, method: req.method, headers });
   upstream.on("upgrade", (response, upstreamSocket, upstreamHead) => {
     let raw = `HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\n`;
@@ -261,6 +288,10 @@ export async function startServer(runtime = createRuntime()) {
   });
 
   server.on("upgrade", async (req, socket, head) => {
+    if (!authorized(req, runtime)) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="OpenClaw Railway"\r\nConnection: close\r\n\r\n');
+      return socket.destroy();
+    }
     if (!(await gatewayReady(runtime))) { try { await startGateway(runtime); } catch {} }
     if (!(await gatewayReady(runtime))) return socket.destroy();
     proxyUpgrade(req, socket, head, runtime);
