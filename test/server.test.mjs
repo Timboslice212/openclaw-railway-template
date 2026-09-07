@@ -69,6 +69,10 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     assert.equal(setup.status, 200);
     assert.match(await setup.text(), /OpenClaw is under control/);
 
+    const devices = await fetch(`${base}/setup/api/devices`, { headers: { authorization: auth } });
+    assert.equal(devices.status, 200);
+    assert.deepEqual((await devices.json()).pending, [{ requestId: "test-request", deviceId: "test-device", remoteIp: "192.0.2.10" }]);
+
     let proxied;
     for (let attempt = 0; attempt < 50; attempt += 1) {
       proxied = await fetch(`${base}/openclaw`, { headers: { authorization: auth } });
