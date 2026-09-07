@@ -49,6 +49,7 @@ test("control center starts, protects setup, and proxies to gateway", async () =
   process.env.XDG_CONFIG_HOME = path.join(root, "config");
   process.env.SETUP_PASSWORD = "test-password";
   process.env.OPENCLAW_GATEWAY_TOKEN = "test-gateway-token";
+  process.env.RAILWAY_PUBLIC_DOMAIN = "example.test";
 
   const runtime = createRuntime(process.env);
   runtime.publicPort = 0;
