@@ -3,8 +3,15 @@ import fs from "node:fs";
 const stateDir = process.env.OPENCLAW_STATE_DIR || "/data/.openclaw";
 const workspaceDir = process.env.OPENCLAW_WORKSPACE_DIR || "/data/workspace";
 const configDir = `${process.env.XDG_CONFIG_HOME || "/data/.config"}/openclaw`;
+const volumeRoot = process.env.OPENCLAW_VOLUME_ROOT || "/data";
 
 if (process.getuid?.() === 0) {
+  // Railway mounts the volume root as root-only on a fresh deployment. The
+  // non-root runtime must be able to traverse it before any child path works.
+  fs.mkdirSync(volumeRoot, { recursive: true, mode: 0o700 });
+  fs.chownSync(volumeRoot, 1000, 1000);
+  fs.chmodSync(volumeRoot, 0o700);
+
   for (const directory of [stateDir, workspaceDir, configDir]) {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
     fs.chownSync(directory, 1000, 1000);

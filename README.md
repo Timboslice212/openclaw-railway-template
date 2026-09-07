@@ -52,6 +52,7 @@ For the first test deployment:
 | `OPENCLAW_WORKSPACE_DIR` | No | `/data/workspace` | Persistent agent workspace |
 | `XDG_CONFIG_HOME` | No | `/data/.config` | Persistent auth-profile configuration |
 | `OPENCLAW_INTERNAL_GATEWAY_PORT` | No | `18789` | Private loopback Gateway port |
+| `OPENCLAW_VOLUME_ROOT` | No | `/data` | Railway volume root initialized before dropping privileges |
 | `PORT` | Injected by Railway | `8080` | Public wrapper port |
 
 Provider keys such as `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` may be stored as Railway variables. They are inherited by the Gateway process and are not returned by the control-center APIs.
