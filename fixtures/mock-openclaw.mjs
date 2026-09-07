@@ -10,6 +10,11 @@ if (process.argv.includes("doctor")) {
   process.exit(0);
 }
 
+if (process.argv.includes("config")) {
+  console.log("mock config updated");
+  process.exit(0);
+}
+
 if (process.argv.includes("status") || process.argv.includes("list") || process.argv.includes("approve")) {
   console.log("mock command ok");
   process.exit(0);
