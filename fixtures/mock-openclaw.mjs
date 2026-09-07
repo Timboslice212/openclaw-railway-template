@@ -15,6 +15,11 @@ if (process.argv.includes("config")) {
   process.exit(0);
 }
 
+if (process.argv.includes("devices") && process.argv.includes("list") && process.argv.includes("--json")) {
+  console.log(JSON.stringify({ pending: [{ requestId: "test-request", deviceId: "test-device", remoteIp: "192.0.2.10" }], paired: [] }));
+  process.exit(0);
+}
+
 if (process.argv.includes("status") || process.argv.includes("list") || process.argv.includes("approve")) {
   console.log("mock command ok");
   process.exit(0);
