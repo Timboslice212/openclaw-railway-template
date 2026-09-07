@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +10,25 @@ import { createRuntime, parsePort, safeEqual, startServer } from "../src/server.
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, "..");
+
+function websocketStatus(port, authorization = "") {
+  return new Promise((resolve, reject) => {
+    const socket = net.createConnection({ host: "127.0.0.1", port });
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error("WebSocket handshake timed out")); }, 5_000);
+    let response = "";
+    socket.on("connect", () => socket.write([
+      "GET /openclaw HTTP/1.1", `Host: 127.0.0.1:${port}`, "Connection: Upgrade", "Upgrade: websocket",
+      "Sec-WebSocket-Version: 13", "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==", "Origin: https://example.test",
+      ...(authorization ? [`Authorization: ${authorization}`] : []), "", "",
+    ].join("\r\n")));
+    socket.on("data", (chunk) => {
+      response += chunk.toString();
+      if (!response.includes("\r\n")) return;
+      clearTimeout(timer); socket.destroy(); resolve(Number(response.match(/^HTTP\/1\.1 (\d{3})/)?.[1]));
+    });
+    socket.on("error", reject);
+  });
+}
 
 test("port parsing and constant-time credential comparison", () => {
   assert.equal(parsePort("8080", 3000), 8080);
@@ -56,6 +76,9 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     }
     assert.equal(proxied.status, 200);
     assert.equal(await proxied.text(), "mock gateway");
+
+    assert.equal(await websocketStatus(port), 401);
+    assert.equal(await websocketStatus(port, auth), 101);
   } finally {
     await app.close();
     process.env = original;
