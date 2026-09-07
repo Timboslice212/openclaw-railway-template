@@ -33,6 +33,7 @@ For the first test deployment:
 6. Open the domain. `/` redirects to the protected `/setup` control center.
 7. Sign in with any username and your `SETUP_PASSWORD` as the password.
 8. Copy the Gateway token, open `/openclaw`, and use that token when the official UI asks you to connect.
+9. For a new browser profile, return to `/setup` and click **Approve browser** once, then reconnect. No Railway shell or CLI command is required.
 
 ## Required Railway settings
 
