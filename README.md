@@ -32,7 +32,7 @@ For the first test deployment:
 5. Generate a Railway public domain targeting port `8080`.
 6. Open the domain. `/` redirects to the protected `/setup` control center.
 7. Sign in on the branded setup page using `SETUP_PASSWORD`. The wrapper creates a secure HttpOnly session cookie; browser-native Basic Auth prompts are not used.
-8. Copy the Gateway token, open `/openclaw`, and use that token when the official UI asks you to connect.
+8. Click **Start OpenClaw** to copy the Gateway token and open `/openclaw` in one action, then paste it when the official UI asks you to connect.
 9. For a new browser profile, return to `/setup` and click **Approve browser** once, then reconnect. No Railway shell or CLI command is required.
 
 ## Required Railway settings
