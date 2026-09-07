@@ -265,6 +265,19 @@ export async function startServer(runtime = createRuntime()) {
         try { fs.accessSync(runtime.stateDir, fs.constants.W_OK); fs.accessSync(runtime.workspaceDir, fs.constants.W_OK); } catch { storageWritable = false; }
         return json(res, 200, { ok: true, version: runtime.version, storageWritable, gateway: { ready: await gatewayReady(runtime), lastError: runtime.lastGatewayError, lastExit: runtime.lastGatewayExit } });
       }
+      if (req.method === "GET" && url.pathname === "/setup/api/devices") {
+        const result = await command(runtime, ["devices", "list", "--json"]);
+        if (result.code !== 0) return json(res, 500, { ok: false, error: result.output || "Could not list devices" });
+        try {
+          const list = JSON.parse(result.output);
+          const pending = Array.isArray(list.pending) ? list.pending.map((device) => ({
+            requestId: String(device.requestId || ""),
+            deviceId: String(device.deviceId || ""),
+            remoteIp: device.remoteIp ? String(device.remoteIp) : null,
+          })).filter((device) => /^[A-Za-z0-9_-]{4,200}$/.test(device.requestId)) : [];
+          return json(res, 200, { ok: true, pending });
+        } catch { return json(res, 500, { ok: false, error: "OpenClaw returned invalid device data" }); }
+      }
       if (req.method === "POST" && url.pathname === "/setup/api/action") {
         try {
           const { action } = await readJson(req);
