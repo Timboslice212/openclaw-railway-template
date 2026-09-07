@@ -14,7 +14,7 @@ A secure, low-maintenance Railway deployment for the official [OpenClaw](https:/
 - Starts the public wrapper immediately, so configuration problems produce useful diagnostics instead of an unexplained Railway 502.
 - Keeps the Gateway on container loopback and proxies HTTP/WebSocket traffic through the wrapper.
 - Persists OpenClaw state, auth profiles, sessions, channel data, and workspace files on `/data`.
-- Runs as the non-root `node` user inherited from the official image.
+- Prepares Railway's root-owned volume, then drops permanently to the non-root `node` user before starting the web service or Gateway.
 - Includes separate wrapper liveness (`/healthz`) and Gateway readiness (`/readyz`) probes.
 - Never prints the Gateway token in deployment logs.
 

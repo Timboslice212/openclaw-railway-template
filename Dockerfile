@@ -11,7 +11,8 @@ WORKDIR /opt/openclaw-railway
 COPY --chown=node:node package.json ./package.json
 COPY --chown=node:node src ./src
 
-RUN chmod 755 /opt/openclaw-railway/src/healthcheck.mjs
+RUN chmod 755 /opt/openclaw-railway/src/healthcheck.mjs \
+    /opt/openclaw-railway/src/launcher.mjs
 
 ENV NODE_ENV=production \
     PORT=8080 \
@@ -23,9 +24,10 @@ ENV NODE_ENV=production \
 
 EXPOSE 8080
 
-USER node
-
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
   CMD ["node", "/opt/openclaw-railway/src/healthcheck.mjs"]
 
-CMD ["node", "/opt/openclaw-railway/src/server.mjs"]
+# Railway mounts fresh volumes as root. The launcher prepares only the required
+# directories, then permanently drops to uid/gid 1000 before starting the app.
+USER root
+CMD ["node", "/opt/openclaw-railway/src/launcher.mjs"]
