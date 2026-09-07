@@ -7,17 +7,6 @@ const configDir = `${configRoot}/openclaw`;
 const cacheRoot = process.env.XDG_CACHE_HOME || "/data/.cache";
 const volumeRoot = process.env.OPENCLAW_VOLUME_ROOT || "/data";
 
-const describe = (directory) => {
-  try {
-    const stat = fs.statSync(directory);
-    return `${directory} uid=${stat.uid} gid=${stat.gid} mode=${(stat.mode & 0o777).toString(8)}`;
-  } catch (error) {
-    return `${directory} unavailable (${error.code || error.message})`;
-  }
-};
-
-console.log(`[launcher] starting uid=${process.getuid?.()} gid=${process.getgid?.()}`);
-
 if (process.getuid?.() === 0) {
   // Railway mounts the volume root as root-only on a fresh deployment. The
   // non-root runtime must be able to traverse it before any child path works.
@@ -40,11 +29,6 @@ if (process.getuid?.() === 0) {
 
 process.env.HOME = process.env.OPENCLAW_RUNTIME_HOME || "/home/node";
 process.env.XDG_CACHE_HOME = cacheRoot;
-
-console.log(`[launcher] runtime uid=${process.getuid?.()} gid=${process.getgid?.()}`);
-for (const directory of [volumeRoot, stateDir, workspaceDir, configRoot, configDir, cacheRoot]) {
-  console.log(`[launcher] ${describe(directory)}`);
-}
 
 const { createRuntime, startServer } = await import("./server.mjs");
 const runtime = createRuntime();
