@@ -62,7 +62,18 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     assert.equal(health.status, 200);
 
     const denied = await fetch(`${base}/setup`, { redirect: "manual" });
-    assert.equal(denied.status, 401);
+    assert.equal(denied.status, 302);
+    assert.match(denied.headers.get("location"), /^\/login/);
+
+    const login = await fetch(`${base}/login`, {
+      method: "POST", redirect: "manual",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ password: "test-password" }),
+    });
+    assert.equal(login.status, 302);
+    const sessionCookie = login.headers.get("set-cookie").split(";", 1)[0];
+    const cookieSetup = await fetch(`${base}/setup`, { headers: { cookie: sessionCookie } });
+    assert.equal(cookieSetup.status, 200);
 
     const auth = `Basic ${Buffer.from("admin:test-password").toString("base64")}`;
     const setup = await fetch(`${base}/setup`, { headers: { authorization: auth } });
