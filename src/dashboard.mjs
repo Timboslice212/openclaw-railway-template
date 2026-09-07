@@ -1,0 +1,53 @@
+const escapeHtml = (value) =>
+  String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+export function dashboardHtml() {
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>OpenClaw on Railway</title>
+  <style>
+    :root{--bg:#080b12;--panel:#111724;--line:#263044;--muted:#9eabc0;--text:#f4f7fb;--green:#39d98a;--yellow:#ffcc66;--red:#ff6b78;--accent:#7c8cff}
+    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 20% 0,#18223c 0,transparent 35%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+    main{width:min(980px,calc(100% - 32px));margin:48px auto}.hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:28px}
+    h1{font-size:clamp(30px,5vw,48px);line-height:1.05;margin:0 0 12px}.eyebrow{color:var(--accent);font-weight:800;letter-spacing:.13em;text-transform:uppercase;font-size:12px}.lead{color:var(--muted);max-width:620px;margin:0}
+    .badge{border:1px solid var(--line);background:#0d1220;border-radius:999px;padding:8px 13px;white-space:nowrap}.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:8px;background:var(--yellow)}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{background:linear-gradient(180deg,rgba(23,31,49,.96),rgba(14,19,31,.96));border:1px solid var(--line);border-radius:18px;padding:22px;box-shadow:0 16px 50px rgba(0,0,0,.18)}
+    .wide{grid-column:1/-1}h2{font-size:17px;margin:0 0 14px}.metric{font-size:25px;font-weight:800}.muted{color:var(--muted)}
+    .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}button,a.button{appearance:none;border:0;border-radius:11px;padding:11px 14px;font:inherit;font-weight:750;cursor:pointer;text-decoration:none;background:var(--accent);color:white}button.secondary,a.secondary{background:#212a3d}button.danger{background:#652f38}
+    pre{background:#080c14;border:1px solid #222c3e;border-radius:12px;padding:14px;min-height:90px;max-height:330px;overflow:auto;white-space:pre-wrap;color:#c9d5e8}input{flex:1;min-width:220px;background:#080c14;color:var(--text);border:1px solid var(--line);border-radius:11px;padding:11px 13px;font:inherit}
+    ol{padding-left:20px;color:var(--muted)}code{color:#cbd5ff}.hidden{display:none}@media(max-width:700px){main{margin-top:28px}.hero{display:block}.badge{display:inline-block;margin-top:18px}.grid{grid-template-columns:1fr}.wide{grid-column:auto}}
+  </style>
+</head>
+<body><main>
+  <section class="hero"><div><div class="eyebrow">Railway control center</div><h1>OpenClaw is under control.</h1><p class="lead">A small, protected control center for status, setup, pairing, and recovery. The OpenClaw dashboard remains the source of truth for providers, models, agents, and channels.</p></div><div class="badge"><span class="dot" id="statusDot"></span><span id="statusText">Checking…</span></div></section>
+  <section class="grid">
+    <article class="card"><h2>OpenClaw version</h2><div class="metric" id="version">Loading…</div><p class="muted">Pinned to a tested stable release.</p></article>
+    <article class="card"><h2>Persistent storage</h2><div class="metric" id="storage">Checking…</div><p class="muted">State, auth profiles, sessions, and workspace live under <code>/data</code>.</p></article>
+    <article class="card wide"><h2>Start here</h2><ol><li>Copy the Gateway token.</li><li>Open the OpenClaw dashboard.</li><li>Paste the token when OpenClaw asks you to connect.</li><li>Configure your provider, model, and channels in the official UI.</li></ol><div class="row"><button id="copyToken">Copy Gateway token</button><a class="button secondary" href="/openclaw" target="_blank" rel="noreferrer">Open OpenClaw</a></div><p class="muted" id="copyResult"></p></article>
+    <article class="card wide"><h2>Diagnostics</h2><div class="row"><button class="secondary action" data-action="version">Version</button><button class="secondary action" data-action="doctor">Run doctor</button><button class="secondary action" data-action="status">Gateway status</button><button class="secondary action" data-action="devices">Pending devices</button><button class="danger action" data-action="restart">Restart Gateway</button></div><pre id="output">Choose a diagnostic action.</pre></article>
+    <article class="card wide"><h2>Approve a device</h2><div class="row"><input id="requestId" autocomplete="off" placeholder="Device request ID"><button id="approve">Approve</button></div><p class="muted">Use “Pending devices” first, then paste the exact request ID.</p></article>
+  </section>
+</main><script type="module">
+const output=document.querySelector('#output');
+const setOutput=(v)=>output.textContent=typeof v==='string'?v:JSON.stringify(v,null,2);
+async function api(path,options){const r=await fetch(path,options);const data=await r.json().catch(()=>({ok:false,error:'Invalid server response'}));if(!r.ok)throw new Error(data.error||('HTTP '+r.status));return data}
+async function refresh(){try{const s=await api('/setup/api/status');document.querySelector('#version').textContent=s.version||'Unknown';document.querySelector('#storage').textContent=s.storageWritable?'Ready':'Needs attention';document.querySelector('#statusText').textContent=s.gateway.ready?'Gateway ready':'Gateway starting';const dot=document.querySelector('#statusDot');dot.style.background=s.gateway.ready?'var(--green)':'var(--yellow)'}catch(e){document.querySelector('#statusText').textContent='Control center error';document.querySelector('#statusDot').style.background='var(--red)'}}
+document.querySelector('#copyToken').onclick=async()=>{try{const d=await api('/setup/api/token');await navigator.clipboard.writeText(d.token);document.querySelector('#copyResult').textContent='Gateway token copied.'}catch(e){document.querySelector('#copyResult').textContent=e.message}};
+for(const b of document.querySelectorAll('.action'))b.onclick=async()=>{b.disabled=true;setOutput('Running…');try{const d=await api('/setup/api/action',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:b.dataset.action})});setOutput(d.output||d)}catch(e){setOutput(e.message)}finally{b.disabled=false;refresh()}};
+document.querySelector('#approve').onclick=async()=>{const requestId=document.querySelector('#requestId').value.trim();setOutput('Approving…');try{const d=await api('/setup/api/devices/approve',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({requestId})});setOutput(d.output||d)}catch(e){setOutput(e.message)}};
+refresh();setInterval(refresh,10000);
+</script></body></html>`;
+}
+
+export function errorHtml(title, detail) {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui;background:#0b0e15;color:#f4f7fb;margin:40px auto;max-width:760px;padding:0 20px}main{background:#151b28;border:1px solid #2a3448;border-radius:18px;padding:24px}p{color:#b1bdd0;white-space:pre-wrap}code{color:#cbd5ff}</style></head><body><main><h1>${escapeHtml(title)}</h1><p>${escapeHtml(detail)}</p></main></body></html>`;
+}
