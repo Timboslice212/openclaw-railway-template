@@ -62,6 +62,7 @@ export function createRuntime(env = process.env) {
   const workspaceDir = env.OPENCLAW_WORKSPACE_DIR || "/data/workspace";
   const configDir = env.XDG_CONFIG_HOME || "/data/.config";
   const setupPassword = env.SETUP_PASSWORD?.trim() || "";
+  const publicOrigin = (env.OPENCLAW_PUBLIC_ORIGIN?.trim() || (env.RAILWAY_PUBLIC_DOMAIN ? `https://${env.RAILWAY_PUBLIC_DOMAIN}` : "")).replace(/\/$/, "");
   const tokenFile = path.join(stateDir, "railway-gateway.token");
 
   for (const directory of [stateDir, workspaceDir, path.join(configDir, "openclaw")]) {
@@ -78,7 +79,7 @@ export function createRuntime(env = process.env) {
   }
 
   return {
-    publicPort, gatewayPort, gatewayHost, stateDir, workspaceDir, configDir,
+    publicPort, gatewayPort, gatewayHost, stateDir, workspaceDir, configDir, publicOrigin,
     setupPassword, gatewayToken, gateway: null, gatewayStart: null,
     lastGatewayError: null, lastGatewayExit: null, version: null,
   };
@@ -119,6 +120,10 @@ async function configureGateway(runtime) {
     ["gateway.trustedProxies", '["127.0.0.1"]', "--strict-json"],
     ["gateway.controlUi.basePath", "/openclaw"],
   ];
+  if (runtime.publicOrigin) {
+    settings.push(["gateway.controlUi.allowedOrigins", JSON.stringify([runtime.publicOrigin]), "--strict-json"]);
+    settings.push(["gateway.publicOrigin", runtime.publicOrigin]);
+  }
   for (const args of settings) {
     const result = await command(runtime, ["config", "set", ...args], { timeoutMs: 30_000 });
     if (result.code !== 0) throw new Error(`Could not configure ${args[0]}: ${result.output}`);
@@ -202,7 +207,6 @@ function proxyHeaders(req, runtime) {
   headers["x-forwarded-for"] = peer && peer !== "127.0.0.1" && peer !== "::1" ? peer : "192.0.2.1";
   headers["x-forwarded-host"] = String(req.headers.host || "");
   headers["x-forwarded-proto"] = "https";
-  if (headers.origin) headers.origin = `http://${runtime.gatewayHost}:${runtime.gatewayPort}`;
   return headers;
 }
 
@@ -291,8 +295,7 @@ export async function startServer(runtime = createRuntime()) {
 
   server.on("upgrade", async (req, socket, head) => {
     if (!authorized(req, runtime)) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="OpenClaw Railway"\r\nConnection: close\r\n\r\n');
-      return socket.destroy();
+      return socket.end('HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm="OpenClaw Railway"\r\nConnection: close\r\n\r\n');
     }
     if (!(await gatewayReady(runtime))) { try { await startGateway(runtime); } catch {} }
     if (!(await gatewayReady(runtime))) return socket.destroy();
