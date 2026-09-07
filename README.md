@@ -31,7 +31,7 @@ For the first test deployment:
 4. Optionally add `OPENCLAW_GATEWAY_TOKEN` with a second strong random value. If omitted, the wrapper generates it once and stores it on the volume.
 5. Generate a Railway public domain targeting port `8080`.
 6. Open the domain. `/` redirects to the protected `/setup` control center.
-7. Sign in with any username and your `SETUP_PASSWORD` as the password.
+7. Sign in on the branded setup page using `SETUP_PASSWORD`. The wrapper creates a secure HttpOnly session cookie; browser-native Basic Auth prompts are not used.
 8. Copy the Gateway token, open `/openclaw`, and use that token when the official UI asks you to connect.
 9. For a new browser profile, return to `/setup` and click **Approve browser** once, then reconnect. No Railway shell or CLI command is required.
 
@@ -86,6 +86,7 @@ Change `OPENCLAW_VERSION` in the Dockerfile only after reviewing the upstream st
 - Treat both `SETUP_PASSWORD` and `OPENCLAW_GATEWAY_TOKEN` as administrator credentials.
 - The Gateway only binds to `127.0.0.1` inside the container.
 - Both HTTP and WebSocket access require the wrapper password; Basic credentials are stripped before proxying to OpenClaw.
+- Interactive browser access uses a 12-hour HttpOnly, Secure, SameSite session cookie derived from `SETUP_PASSWORD`, preventing recurring browser sign-in dialogs. Basic credentials remain accepted for scripted diagnostics but are never forwarded upstream.
 - The Railway public origin is registered automatically in OpenClaw's exact Control UI origin allowlist. Set `OPENCLAW_PUBLIC_ORIGIN` when using a custom domain.
 - Setup APIs expose only a fixed allowlist of commands; there is no browser shell.
 - Back up `/data` before upgrading or changing configuration.
