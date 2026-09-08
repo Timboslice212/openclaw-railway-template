@@ -10,9 +10,9 @@
   [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white)](package.json)
   [![MIT License](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
 
-  <img src="assets/deploy-placeholder.svg" width="240" alt="Deploy on Railway — available after template approval">
+  <a href="https://railway.com/deploy/D_Kpn-"><img src="assets/deploy-placeholder.svg" width="240" alt="Deploy OpenClaw on Railway"></a>
 
-  **Template link pending.** The live Deploy button will be enabled only after the Railway template is tested and approved.
+  **[Deploy the published template on Railway](https://railway.com/deploy/D_Kpn-)**
 
   [Deployment guide](docs/DEPLOYMENT.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 </div>
@@ -43,7 +43,7 @@ The public service listens on Railway's `PORT`. It serves the protected setup in
 
 ## One-click deployment
 
-1. Open the published Railway template when it becomes available.
+1. Open the [published Railway template](https://railway.com/deploy/D_Kpn-).
 2. Railway asks for exactly one value: `SETUP_PASSWORD`.
 3. Deploy the service, volume, variables, public domain, and `/healthz` check.
 4. Open the generated domain and unlock the setup wizard.
@@ -72,7 +72,7 @@ Choose a long, unique password. Do not reuse an AI-provider password or commit i
 | `XDG_CONFIG_HOME` | `/data/.config` |
 | `XDG_CACHE_HOME` | `/data/.cache` |
 
-Read the complete [deployment guide](docs/DEPLOYMENT.md) before publishing or deploying the template.
+Read the complete [deployment guide](docs/DEPLOYMENT.md) before deploying the template.
 
 ## Setup Wizard
 
