@@ -1,6 +1,14 @@
 # Changelog
 
+## 1.1.1 - 2026-09-08
+
+- Restore OpenClaw's native credential flow to eliminate SecretRef runtime, audit, and readiness-transition failures during first-run setup.
+- Replace raw OpenClaw diagnostic payloads with concise, secret-safe provider and channel errors.
+- Keep the provider-deferred launch path introduced in 1.1.0.
+
 ## 1.1.0 - 2026-09-08
+
+> Superseded by 1.1.1 before marketplace republication because OpenClaw's active runtime did not reliably materialize the generated SecretRefs during first-run validation.
 
 - Store first-run provider credentials as SecretRefs from the start, preventing plaintext auth-profile residue during setup.
 - Resolve temporary environment SecretRefs during audit and provider probes, then reload credentials from Secret Store for Gateway restarts and redeployments.
