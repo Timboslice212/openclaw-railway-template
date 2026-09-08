@@ -25,7 +25,6 @@ const CHANNELS = Object.freeze({
   telegram: { secretName: "OPENCLAW_RAILWAY_TELEGRAM_TOKEN", path: "channels.telegram.botToken", hosts: ["api.telegram.org"] },
   discord: { secretName: "OPENCLAW_RAILWAY_DISCORD_TOKEN", path: "channels.discord.token", hosts: ["discord.com", "gateway.discord.gg"] },
 });
-const PROVIDER_SECRET_NAME = "OPENCLAW_RAILWAY_PROVIDER_API_KEY";
 
 export function parsePort(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -193,71 +192,6 @@ async function configureGateway(runtime) {
   }
 }
 
-async function storeSecret(runtime, name, value, hosts = []) {
-  const args = ["secrets", "store", "set", name, "--kind", "secret"];
-  for (const host of hosts) args.push("--allow-host", host);
-  const result = await command(runtime, args, { timeoutMs: 30_000, input: value, secrets: [value] });
-  if (result.code !== 0) throw new Error(`Could not secure ${name}: ${result.output}`);
-}
-
-async function migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, channel, channelToken }) {
-  const gatewaySecretName = "OPENCLAW_RAILWAY_GATEWAY_TOKEN";
-  await storeSecret(runtime, PROVIDER_SECRET_NAME, apiKey, providerConfig.hosts);
-  await storeSecret(runtime, gatewaySecretName, runtime.gatewayToken);
-
-  const storeRef = (id) => ({ source: "store", provider: "default", id });
-  const targets = [
-    {
-      type: "auth-profiles.api_key.key",
-      path: `profiles.${provider}:default.key`,
-      pathSegments: ["profiles", `${provider}:default`, "key"],
-      agentId: "main",
-      authProfileProvider: provider,
-      ref: storeRef(PROVIDER_SECRET_NAME),
-    },
-    {
-      type: "gateway.auth.token",
-      path: "gateway.auth.token",
-      pathSegments: ["gateway", "auth", "token"],
-      ref: storeRef(gatewaySecretName),
-    },
-  ];
-
-  if (channel !== "none") {
-    const channelConfig = CHANNELS[channel];
-    await storeSecret(runtime, channelConfig.secretName, channelToken, channelConfig.hosts);
-    targets.push({
-      type: channelConfig.path,
-      path: channelConfig.path,
-      pathSegments: channelConfig.path.split("."),
-      ref: storeRef(channelConfig.secretName),
-    });
-  }
-
-  const planPath = path.join(runtime.stateDir, "railway-secrets-plan.json");
-  const temporary = `${planPath}.${process.pid}.tmp`;
-  fs.writeFileSync(temporary, `${JSON.stringify({ version: 1, protocolVersion: 1, targets }, null, 2)}\n`, { mode: 0o600 });
-  fs.renameSync(temporary, planPath);
-  const applied = await command(runtime, ["secrets", "apply", "--from", planPath, "--json"], { timeoutMs: 60_000 });
-  if (applied.code !== 0) throw new Error(`Could not migrate credentials to SecretRefs: ${applied.output}`);
-  const audit = await command(runtime, ["secrets", "audit", "--check", "--json"], {
-    timeoutMs: 60_000,
-    env: { [providerConfig.envVar]: apiKey },
-    secrets: [apiKey],
-  });
-  if (audit.code !== 0) throw new Error(`Secret audit did not pass: ${audit.output}`);
-}
-
-async function loadProviderEnvironment(runtime) {
-  const provider = String(readSetupState(runtime).provider || "").toLowerCase();
-  const providerConfig = PROVIDERS[provider];
-  if (!providerConfig) return {};
-  const stored = await command(runtime, ["secrets", "store", "get", PROVIDER_SECRET_NAME], { timeoutMs: 30_000 });
-  const apiKey = stored.code === 0 ? stored.output.trim() : "";
-  if (!apiKey) throw new Error("The configured provider credential could not be loaded from OpenClaw Secret Store");
-  return { [providerConfig.envVar]: apiKey };
-}
-
 async function finishUnconfiguredSetup(runtime) {
   writeSetupState(runtime, { status: "running", step: "gateway", provider: null, model: null, channel: null, providerDeferred: true, error: null });
   await stopGateway(runtime);
@@ -283,7 +217,6 @@ async function startGateway(runtime) {
     const executable = process.env.OPENCLAW_NODE || "node";
     const entry = process.env.OPENCLAW_ENTRY || "/app/openclaw.mjs";
     const args = [entry, "gateway", "run", "--allow-unconfigured", "--bind", "loopback", "--port", String(runtime.gatewayPort), "--auth", "token", "--token", runtime.gatewayToken];
-    const providerEnv = await loadProviderEnvironment(runtime);
     const child = spawn(executable, args, {
       env: {
         ...process.env,
@@ -291,7 +224,6 @@ async function startGateway(runtime) {
         OPENCLAW_WORKSPACE_DIR: runtime.workspaceDir,
         OPENCLAW_GATEWAY_TOKEN: runtime.gatewayToken,
         XDG_CONFIG_HOME: runtime.configDir,
-        ...providerEnv,
       },
       stdio: "inherit",
     });
@@ -372,7 +304,7 @@ async function runFirstSetup(runtime, input) {
     const onboarding = await command(runtime, [
       "onboard", "--non-interactive", "--accept-risk",
       "--auth-choice", providerConfig.authChoice,
-      "--secret-input-mode", "ref",
+      "--secret-input-mode", "plaintext",
       "--workspace", runtime.workspaceDir,
       "--gateway-bind", "loopback",
       "--gateway-port", String(runtime.gatewayPort),
@@ -381,38 +313,37 @@ async function runFirstSetup(runtime, input) {
       "--no-install-daemon", "--skip-channels", "--skip-skills", "--skip-search",
       "--skip-health", "--skip-ui", "--suppress-gateway-token-output", "--json",
     ], { timeoutMs: 180_000, env: { [providerConfig.envVar]: apiKey }, secrets: [apiKey] });
-    if (onboarding.code !== 0) throw new Error(`Provider setup failed: ${onboarding.output || `exit ${onboarding.code}`}`);
+    if (onboarding.code !== 0) throw new Error("Provider setup failed. Verify the API key, provider access, and account status, then try again.");
 
     if (model) {
       writeSetupState(runtime, { step: "model" });
       const selected = await command(runtime, ["models", "set", model], { timeoutMs: 60_000 });
-      if (selected.code !== 0) throw new Error(`Model selection failed: ${selected.output}`);
+      if (selected.code !== 0) throw new Error("Model selection failed. Verify the provider/model-id value and try again.");
     }
 
     if (channel !== "none") {
       writeSetupState(runtime, { step: "channel" });
       const added = await command(runtime, ["channels", "add", "--channel", channel, "--token", channelToken], { timeoutMs: 90_000, secrets: [channelToken] });
-      if (added.code !== 0) throw new Error(`${channel} setup failed: ${added.output}`);
+      if (added.code !== 0) throw new Error(`${channel} setup failed. Verify the bot token and try again.`);
     }
 
     writeSetupState(runtime, { step: "security" });
-    await migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, channel, channelToken });
     await configureMemory(runtime, provider);
 
     writeSetupState(runtime, { step: "validation" });
     const validation = await command(runtime, ["config", "validate", "--json"], { timeoutMs: 60_000 });
-    if (validation.code !== 0) throw new Error(`OpenClaw configuration is invalid: ${validation.output}`);
+    if (validation.code !== 0) throw new Error("OpenClaw configuration validation failed. Retry setup or use Configure provider later.");
     const modelStatus = await command(runtime, [
       "models", "status", "--probe", "--check", "--probe-provider", provider,
       "--probe-timeout", "30000", "--probe-max-tokens", "8", "--json",
     ], { timeoutMs: 60_000, env: { [providerConfig.envVar]: apiKey }, secrets: [apiKey] });
-    if (modelStatus.code !== 0) throw new Error(`Model readiness check failed: ${modelStatus.output}`);
+    if (modelStatus.code !== 0) throw new Error("Provider readiness check failed. Verify the API key, model access, billing, and regional availability, then try again.");
 
     writeSetupState(runtime, { step: "gateway" });
     await startGateway(runtime);
     if (channel !== "none") {
       const channelStatus = await command(runtime, ["channels", "status", "--channel", channel, "--probe", "--timeout", "15000", "--json"], { timeoutMs: 30_000 });
-      if (channelStatus.code !== 0) throw new Error(`${channel} validation failed: ${channelStatus.output}`);
+      if (channelStatus.code !== 0) throw new Error(`${channel} validation failed. Verify the bot token and channel access, then try again.`);
     }
     return writeSetupState(runtime, {
       status: "complete", step: "complete", completedAt: new Date().toISOString(),
