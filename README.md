@@ -56,9 +56,9 @@ The public service listens on Railway's `PORT`. It serves the protected setup in
 
 | Variable | Required | Default | Purpose |
 | --- | :---: | --- | --- |
-| `SETUP_PASSWORD` | Yes | Empty | Unlocks the secure setup dashboard. No username is required. |
+| `SETUP_PASSWORD` | Yes | Empty | Unlocks the secure setup dashboard. Must contain at least 12 characters; no username is required. |
 
-Choose a long, unique password. Do not reuse an AI-provider password or commit it to GitHub.
+Choose a unique password containing at least 12 characters. Do not reuse an AI-provider password or commit it to GitHub.
 
 ### Preconfigured variables
 
@@ -81,9 +81,9 @@ After Railway reports the deployment as healthy:
 1. Open the Railway-generated HTTPS domain.
 2. Enter the `SETUP_PASSWORD` chosen before deployment.
 3. Select OpenAI, Anthropic, Google Gemini, OpenRouter, or xAI.
-4. Enter the provider API key and optionally override the default model.
+4. Enter the provider API key and optionally override the default model, or choose **Configure provider later in OpenClaw**.
 5. Optionally connect Telegram or Discord.
-6. Select **Configure & validate OpenClaw**. The wizard runs official onboarding, validates configuration, performs a provider probe, protects credentials with SecretRefs, and waits for Gateway readiness.
+6. Select **Configure & validate OpenClaw**. The wizard runs reference-first official onboarding, validates configuration, performs a provider probe, protects credentials with SecretRefs, and waits for Gateway readiness. If provider setup was deferred, it starts the Gateway directly and leaves provider configuration to OpenClaw Settings.
 7. Select **Launch secure dashboard** to complete the browser handoff.
 
 After first run, manage providers, agents, skills, and channels in the official OpenClaw dashboard. The setup page remains available for status and recovery diagnostics.
@@ -151,12 +151,6 @@ Start with the setup-page diagnostics, then use the [troubleshooting guide](docs
 <summary><strong>Is this the official OpenClaw project?</strong></summary>
 
 No. This is an independent Railway integration that runs the official OpenClaw container. OpenClaw retains its own license and trademarks.
-</details>
-
-<details>
-<summary><strong>Why is there no active Deploy on Railway link?</strong></summary>
-
-The repository is being prepared and tested before the template is published. A real link will replace the clearly marked placeholder only after approval.
 </details>
 
 <details>
