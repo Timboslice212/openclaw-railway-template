@@ -47,7 +47,7 @@ Do not ask users to supply these values. Do not expose the internal Gateway port
 5. Confirm Railway reports `/healthz` healthy and the service listens on the assigned `PORT`.
 6. Open the public HTTPS domain and sign in with `SETUP_PASSWORD` without a username.
 7. Configure a test provider and model through the wizard, or choose **Configure provider later in OpenClaw**.
-8. Confirm provider validation when configured, Gateway startup, `/readyz`, and dashboard handoff succeed.
+8. Confirm provider validation when configured, Gateway startup, `/readyz`, and dashboard handoff succeed. Provider credentials remain in OpenClaw's private state on `/data`.
 9. Redeploy the same service and confirm configuration and workspace data persist.
 10. Back up the volume, test an upgrade separately, and record the result.
 
