@@ -1,6 +1,6 @@
 {
   "name": "openclaw-railway-template",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Secure, browser-guided OpenClaw deployment with persistent storage on Railway",
   "private": true,
   "type": "module",
