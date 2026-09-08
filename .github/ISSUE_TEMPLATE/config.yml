@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: OpenClaw upstream issues
+    url: https://github.com/openclaw/openclaw/issues
+    about: Report problems in OpenClaw itself to the upstream project.
+  - name: Security policy
+    url: https://github.com/Timboslice212/openclaw-railway-template/security/policy
+    about: Read the private security-reporting guidance before disclosing a vulnerability.
+

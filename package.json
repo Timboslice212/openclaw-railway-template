@@ -1,8 +1,25 @@
 {
   "name": "openclaw-railway-template",
   "version": "1.0.0",
+  "description": "Secure, browser-guided OpenClaw deployment with persistent storage on Railway",
   "private": true,
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Timboslice212/openclaw-railway-template.git"
+  },
+  "homepage": "https://github.com/Timboslice212/openclaw-railway-template#readme",
+  "bugs": {
+    "url": "https://github.com/Timboslice212/openclaw-railway-template/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "railway",
+    "railway-template",
+    "ai-agent",
+    "self-hosted"
+  ],
   "engines": {
     "node": ">=24"
   },
@@ -12,6 +29,8 @@
   "scripts": {
     "start": "node src/server.mjs",
     "check": "node --check src/server.mjs && node --check src/dashboard.mjs && node --check src/healthcheck.mjs && node --check src/launcher.mjs",
-    "test": "node --test"
+    "docs:check": "node scripts/check-docs.mjs",
+    "test": "node --test",
+    "verify": "npm run check && npm run docs:check && npm test"
   }
 }

@@ -18,4 +18,5 @@ jobs:
         with:
           node-version: 24
       - run: npm run check
+      - run: npm run docs:check
       - run: npm test
