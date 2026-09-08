@@ -178,6 +178,7 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     const onboarding = commandLines.find((args) => args.includes("onboard"));
     assert.ok(onboarding, "provider setup must run OpenClaw onboarding");
     assert.equal(onboarding[onboarding.indexOf("--secret-input-mode") + 1], "ref");
+    assert.ok(commandLines.some((args) => args.includes("store") && args.includes("get") && args.includes("OPENCLAW_RAILWAY_PROVIDER_API_KEY")), "Gateway must reload the provider key from Secret Store");
 
     const handoffResponse = await fetch(`${base}/setup/api/handoff`, {
       method: "POST", headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" }, body: "{}",
