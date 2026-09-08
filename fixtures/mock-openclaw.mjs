@@ -16,10 +16,6 @@ if (process.argv.includes("doctor")) {
 }
 
 if (process.argv.includes("secrets")) {
-  if (process.argv.includes("get")) {
-    console.log("sk-test-provider-key");
-    process.exit(0);
-  }
   console.log(JSON.stringify({ ok: true, mock: true }));
   process.exit(0);
 }
