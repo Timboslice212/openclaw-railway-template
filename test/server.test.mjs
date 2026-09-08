@@ -177,8 +177,8 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     const commandLines = fs.readFileSync(process.env.MOCK_COMMAND_LOG, "utf8").trim().split("\n").map(JSON.parse);
     const onboarding = commandLines.find((args) => args.includes("onboard"));
     assert.ok(onboarding, "provider setup must run OpenClaw onboarding");
-    assert.equal(onboarding[onboarding.indexOf("--secret-input-mode") + 1], "ref");
-    assert.ok(commandLines.some((args) => args.includes("store") && args.includes("get") && args.includes("OPENCLAW_RAILWAY_PROVIDER_API_KEY")), "Gateway must reload the provider key from Secret Store");
+    assert.equal(onboarding[onboarding.indexOf("--secret-input-mode") + 1], "plaintext");
+    assert.equal(commandLines.some((args) => args.includes("secrets")), false, "first-run setup must not run SecretRef migration or audit commands");
 
     const handoffResponse = await fetch(`${base}/setup/api/handoff`, {
       method: "POST", headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" }, body: "{}",
@@ -226,8 +226,7 @@ test("control center starts, protects setup, and proxies to gateway", async () =
 
     const commandLog = fs.readFileSync(process.env.MOCK_COMMAND_LOG, "utf8");
     assert.match(commandLog, /plugins\.entries\.device-pair\.config\.publicUrl/);
-    assert.match(commandLog, /secrets.*store.*set.*OPENCLAW_RAILWAY_PROVIDER_API_KEY/);
-    assert.match(commandLog, /secrets.*apply/);
+    assert.doesNotMatch(commandLog, /\["secrets"/);
 
     assert.equal(await websocketStatus(port), 101);
     assert.equal(await websocketStatus(port, bearer), 101);
