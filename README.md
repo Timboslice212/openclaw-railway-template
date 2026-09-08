@@ -20,6 +20,8 @@ A secure, version-pinned, guided deployment of the latest stable [OpenClaw](http
 - Loopback-only Gateway behind a hardened HTTP/WebSocket proxy; OpenClaw's signed device identity protects the dashboard.
 - Non-root application and Gateway processes after safe volume initialization.
 - Explicit liveness and readiness endpoints, bounded commands, redacted diagnostics, and no secret echo.
+- Provider, channel, and Gateway credentials are migrated to OpenClaw's write-only Secret Store and referenced through SecretRefs before setup completes.
+- Container-aware diagnostics report the process and readiness probe directly instead of misleading systemd status inside Railway.
 
 ## One-click user journey
 
@@ -70,6 +72,8 @@ OAuth and additional providers remain available after launch in OpenClaw. Telegr
 
 OpenClaw state is stored below `/data`: configuration and credentials in `/data/.openclaw`, workspace files in `/data/workspace`, and supporting config/cache directories in `/data/.config` and `/data/.cache`.
 
+Semantic memory search stays enabled automatically for OpenAI first-run configurations. For providers that do not supply a compatible embedding credential during onboarding, vector search is disabled to prevent noisy background failures; Markdown memory remains available and the user can enable a supported embedding provider later in OpenClaw Settings.
+
 ## Development checks
 
 The test suite uses a local mock Gateway and never calls an AI provider:
@@ -89,9 +93,10 @@ Upstream upgrades are deliberate. Update `OPENCLAW_VERSION` in `Dockerfile`, run
 
 - Treat `SETUP_PASSWORD`, provider keys, channel tokens, and `/data` backups as administrator secrets.
 - The setup password is collected by Railway before deployment. Setting it on an unauthenticated public first-run page would create a first-visitor account-takeover race.
-- Provider credentials are submitted only over HTTPS, passed to the official onboarding command without being logged, and persisted in OpenClaw's private state.
+- Provider credentials are submitted only over HTTPS, passed to the official onboarding command without being logged, then moved into OpenClaw's write-only Secret Store. Setup must pass `openclaw secrets audit --check` before it can complete.
 - The generated Gateway token is stored with restrictive permissions and is never returned by the setup API or shown in the browser.
 - The Gateway listens only on `127.0.0.1`; the public wrapper rebuilds trusted proxy headers. After first run, the official OpenClaw signed-device credential—not a recurring wrapper login—protects dashboard access.
+- The proxy removes Basic credentials and client-controlled forwarding headers, while preserving only OpenClaw Bearer device credentials needed by authenticated dashboard resources.
 - A Railway volume provides persistence, not an independent backup. Back up `/data` before major upgrades.
 
 ## License and trademarks

@@ -62,6 +62,7 @@ test("control center starts, protects setup, and proxies to gateway", async () =
   process.env.OPENCLAW_GATEWAY_TOKEN = "test-gateway-token";
   process.env.RAILWAY_PUBLIC_DOMAIN = "example.test";
   process.env.RAILWAY_VOLUME_MOUNT_PATH = "/data";
+  process.env.MOCK_COMMAND_LOG = path.join(root, "commands.log");
 
   const runtime = createRuntime(process.env);
   runtime.publicPort = 0;
@@ -88,9 +89,8 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     assert.equal(cookieSetup.status, 200);
 
     const auth = `Basic ${Buffer.from("admin:test-password").toString("base64")}`;
-    const setup = await fetch(`${base}/setup`, { headers: { authorization: auth } });
-    assert.equal(setup.status, 200);
-    assert.match(await setup.text(), /OpenClaw, ready in one guided setup/);
+    const setup = await fetch(`${base}/setup`, { headers: { authorization: auth }, redirect: "manual" });
+    assert.equal(setup.status, 302);
 
     const status = await fetch(`${base}/setup/api/status`, { headers: { cookie: sessionCookie } });
     assert.equal(status.status, 200);
@@ -136,21 +136,46 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     assert.equal(handoffUrl.pathname, "/openclaw/");
     assert.equal(new URLSearchParams(handoffUrl.hash.slice(1)).get("gatewayUrl"), "wss://example.test/openclaw");
 
-    const devices = await fetch(`${base}/setup/api/devices`, { headers: { authorization: auth } });
+    const devices = await fetch(`${base}/setup/api/devices`, { headers: { cookie: sessionCookie } });
     assert.equal(devices.status, 200);
     assert.deepEqual((await devices.json()).pending, [{ requestId: "test-request", deviceId: "test-device", remoteIp: "192.0.2.10" }]);
 
     let proxied;
     for (let attempt = 0; attempt < 50; attempt += 1) {
-      proxied = await fetch(`${base}/openclaw`, { headers: { authorization: auth } });
+      proxied = await fetch(`${base}/openclaw`);
       if (proxied.status === 200) break;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
     assert.equal(proxied.status, 200);
     assert.equal(await proxied.text(), "mock gateway");
 
+    const bearer = "Bearer durable-device-credential";
+    const authCheck = await fetch(`${base}/auth-check`, { headers: { authorization: bearer } });
+    assert.equal((await authCheck.json()).authorization, bearer);
+    const basicCheck = await fetch(`${base}/auth-check`, { headers: { authorization: auth } });
+    assert.equal((await basicCheck.json()).authorization, null);
+
+    const doctor = await fetch(`${base}/setup/api/action`, {
+      method: "POST", headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" }, body: JSON.stringify({ action: "doctor" }),
+    });
+    assert.equal(doctor.status, 200);
+    const doctorBody = await doctor.json();
+    assert.equal(doctorBody.kind, "doctor");
+    assert.equal(doctorBody.ok, false);
+
+    const containerStatus = await fetch(`${base}/setup/api/action`, {
+      method: "POST", headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" }, body: JSON.stringify({ action: "status" }),
+    });
+    assert.equal(containerStatus.status, 200);
+    assert.equal((await containerStatus.json()).kind, "container-status");
+
+    const commandLog = fs.readFileSync(process.env.MOCK_COMMAND_LOG, "utf8");
+    assert.match(commandLog, /plugins\.entries\.device-pair\.config\.publicUrl/);
+    assert.match(commandLog, /secrets.*store.*set.*OPENCLAW_RAILWAY_PROVIDER_API_KEY/);
+    assert.match(commandLog, /secrets.*apply/);
+
     assert.equal(await websocketStatus(port), 101);
-    assert.equal(await websocketStatus(port, auth), 101);
+    assert.equal(await websocketStatus(port, bearer), 101);
   } finally {
     await app.close();
     process.env = original;

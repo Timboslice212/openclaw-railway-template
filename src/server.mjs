@@ -15,13 +15,16 @@ const redact = (text, secrets = []) => {
 };
 
 const PROVIDERS = Object.freeze({
-  openai: { authChoice: "openai-api-key", envVar: "OPENAI_API_KEY" },
-  anthropic: { authChoice: "anthropic-api-key", envVar: "ANTHROPIC_API_KEY" },
-  google: { authChoice: "gemini-api-key", envVar: "GEMINI_API_KEY" },
-  openrouter: { authChoice: "openrouter-api-key", envVar: "OPENROUTER_API_KEY" },
-  xai: { authChoice: "xai-api-key", envVar: "XAI_API_KEY" },
+  openai: { authChoice: "openai-api-key", envVar: "OPENAI_API_KEY", hosts: ["api.openai.com"] },
+  anthropic: { authChoice: "anthropic-api-key", envVar: "ANTHROPIC_API_KEY", hosts: ["api.anthropic.com"] },
+  google: { authChoice: "gemini-api-key", envVar: "GEMINI_API_KEY", hosts: ["generativelanguage.googleapis.com"] },
+  openrouter: { authChoice: "openrouter-api-key", envVar: "OPENROUTER_API_KEY", hosts: ["openrouter.ai"] },
+  xai: { authChoice: "xai-api-key", envVar: "XAI_API_KEY", hosts: ["api.x.ai"] },
 });
-const CHANNELS = new Set(["telegram", "discord"]);
+const CHANNELS = Object.freeze({
+  telegram: { secretName: "OPENCLAW_RAILWAY_TELEGRAM_TOKEN", path: "channels.telegram.botToken", hosts: ["api.telegram.org"] },
+  discord: { secretName: "OPENCLAW_RAILWAY_DISCORD_TOKEN", path: "channels.discord.token", hosts: ["discord.com", "gateway.discord.gg"] },
+});
 
 export function parsePort(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -108,7 +111,7 @@ export function createRuntime(env = process.env) {
   };
 }
 
-function command(runtime, args, { timeoutMs = 120_000, env = {}, secrets = [] } = {}) {
+function command(runtime, args, { timeoutMs = 120_000, env = {}, secrets = [], input } = {}) {
   const executable = process.env.OPENCLAW_NODE || "node";
   const entry = process.env.OPENCLAW_ENTRY || "/app/openclaw.mjs";
   return new Promise((resolve) => {
@@ -121,11 +124,12 @@ function command(runtime, args, { timeoutMs = 120_000, env = {}, secrets = [] } 
         XDG_CONFIG_HOME: runtime.configDir,
         ...env,
       },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
     let output = "";
     const collect = (chunk) => { output += chunk.toString(); };
     child.stdout.on("data", collect); child.stderr.on("data", collect);
+    child.stdin.end(input === undefined ? "" : String(input));
     const timer = setTimeout(() => child.kill("SIGTERM"), timeoutMs);
     child.on("error", (error) => { clearTimeout(timer); resolve({ code: -1, output: String(error) }); });
     child.on("exit", (code, signal) => { clearTimeout(timer); resolve({ code: code ?? -1, signal, output: redact(output, [runtime.gatewayToken, ...secrets]) }); });
@@ -177,11 +181,73 @@ async function configureGateway(runtime) {
   if (runtime.publicOrigin) {
     settings.push(["gateway.controlUi.allowedOrigins", JSON.stringify([runtime.publicOrigin]), "--strict-json"]);
     settings.push(["gateway.publicOrigin", runtime.publicOrigin]);
+    const pairingUrl = new URL("/openclaw", `${runtime.publicOrigin}/`);
+    pairingUrl.protocol = pairingUrl.protocol === "https:" ? "wss:" : "ws:";
+    settings.push(["plugins.entries.device-pair.enabled", "true", "--strict-json"]);
+    settings.push(["plugins.entries.device-pair.config.publicUrl", pairingUrl.toString()]);
   }
   for (const args of settings) {
     const result = await command(runtime, ["config", "set", ...args], { timeoutMs: 30_000 });
     if (result.code !== 0) throw new Error(`Could not configure ${args[0]}: ${result.output}`);
   }
+}
+
+async function storeSecret(runtime, name, value, hosts = []) {
+  const args = ["secrets", "store", "set", name, "--kind", "secret"];
+  for (const host of hosts) args.push("--allow-host", host);
+  const result = await command(runtime, args, { timeoutMs: 30_000, input: value, secrets: [value] });
+  if (result.code !== 0) throw new Error(`Could not secure ${name}: ${result.output}`);
+}
+
+async function migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, channel, channelToken }) {
+  const providerSecretName = "OPENCLAW_RAILWAY_PROVIDER_API_KEY";
+  const gatewaySecretName = "OPENCLAW_RAILWAY_GATEWAY_TOKEN";
+  await storeSecret(runtime, providerSecretName, apiKey, providerConfig.hosts);
+  await storeSecret(runtime, gatewaySecretName, runtime.gatewayToken);
+
+  const storeRef = (id) => ({ source: "store", provider: "default", id });
+  const targets = [
+    {
+      type: "auth-profiles.api_key.key",
+      path: `profiles.${provider}:default.key`,
+      pathSegments: ["profiles", `${provider}:default`, "key"],
+      agentId: "main",
+      authProfileProvider: provider,
+      ref: storeRef(providerSecretName),
+    },
+    {
+      type: "gateway.auth.token",
+      path: "gateway.auth.token",
+      pathSegments: ["gateway", "auth", "token"],
+      ref: storeRef(gatewaySecretName),
+    },
+  ];
+
+  if (channel !== "none") {
+    const channelConfig = CHANNELS[channel];
+    await storeSecret(runtime, channelConfig.secretName, channelToken, channelConfig.hosts);
+    targets.push({
+      type: channelConfig.path,
+      path: channelConfig.path,
+      pathSegments: channelConfig.path.split("."),
+      ref: storeRef(channelConfig.secretName),
+    });
+  }
+
+  const planPath = path.join(runtime.stateDir, "railway-secrets-plan.json");
+  const temporary = `${planPath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, `${JSON.stringify({ version: 1, protocolVersion: 1, targets }, null, 2)}\n`, { mode: 0o600 });
+  fs.renameSync(temporary, planPath);
+  const applied = await command(runtime, ["secrets", "apply", "--from", planPath, "--json"], { timeoutMs: 60_000 });
+  if (applied.code !== 0) throw new Error(`Could not migrate credentials to SecretRefs: ${applied.output}`);
+  const audit = await command(runtime, ["secrets", "audit", "--check", "--json"], { timeoutMs: 60_000 });
+  if (audit.code !== 0) throw new Error(`Secret audit did not pass: ${audit.output}`);
+}
+
+async function configureMemory(runtime, provider) {
+  const enabled = provider === "openai";
+  const result = await command(runtime, ["config", "set", "memory.search.enabled", String(enabled), "--strict-json"], { timeoutMs: 30_000 });
+  if (result.code !== 0) throw new Error(`Could not configure memory search: ${result.output}`);
 }
 
 async function startGateway(runtime) {
@@ -256,7 +322,7 @@ async function runFirstSetup(runtime, input) {
   if (model && (!/^[A-Za-z0-9._:/+-]{2,240}$/.test(model) || !model.startsWith(`${provider}/`))) {
     throw new Error(`Model must use the ${provider}/model-id format`);
   }
-  if (channel !== "none" && !CHANNELS.has(channel)) throw new Error("Choose a supported channel");
+  if (channel !== "none" && !CHANNELS[channel]) throw new Error("Choose a supported channel");
   if (channel !== "none" && (channelToken.length < 8 || channelToken.length > 4_096)) throw new Error(`Enter a valid ${channel} bot token`);
   const storage = storageStatus(runtime);
   if (!storage.persistent || !storage.writable) throw new Error("A writable Railway volume mounted at /data is required before setup can continue");
@@ -290,6 +356,10 @@ async function runFirstSetup(runtime, input) {
       const added = await command(runtime, ["channels", "add", "--channel", channel, "--token", channelToken], { timeoutMs: 90_000, secrets: [channelToken] });
       if (added.code !== 0) throw new Error(`${channel} setup failed: ${added.output}`);
     }
+
+    writeSetupState(runtime, { step: "security" });
+    await migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, channel, channelToken });
+    await configureMemory(runtime, provider);
 
     writeSetupState(runtime, { step: "validation" });
     const validation = await command(runtime, ["config", "validate", "--json"], { timeoutMs: 60_000 });
@@ -345,14 +415,7 @@ function authorized(req, runtime) {
   if (!runtime.setupPassword) return false;
   const cookies = Object.fromEntries(String(req.headers.cookie || "").split(";").map((part) => part.trim().split(/=(.*)/s).slice(0, 2)).filter(([name]) => name));
   const expectedSession = crypto.createHmac("sha256", runtime.setupPassword).update("openclaw-railway-session-v1").digest("hex");
-  if (cookies["__Host-oc_setup_session"] && safeEqual(cookies["__Host-oc_setup_session"], expectedSession)) return true;
-  const [scheme, encoded] = String(req.headers.authorization || "").split(" ");
-  if (scheme !== "Basic" || !encoded) return false;
-  try {
-    const decoded = Buffer.from(encoded, "base64").toString("utf8");
-    const colon = decoded.indexOf(":");
-    return safeEqual(colon >= 0 ? decoded.slice(colon + 1) : "", runtime.setupPassword);
-  } catch { return false; }
+  return Boolean(cookies["__Host-oc_setup_session"] && safeEqual(cookies["__Host-oc_setup_session"], expectedSession));
 }
 
 function challenge(req, res) {
@@ -366,6 +429,8 @@ function proxyHeaders(req, runtime) {
   for (const name of ["authorization", "proxy-authorization", "cookie", "connection", "forwarded", "x-forwarded-for", "x-real-ip"]) {
     delete headers[name];
   }
+  const authorization = String(req.headers.authorization || "");
+  if (/^Bearer [^\s\r\n]{8,4096}$/i.test(authorization)) headers.authorization = authorization;
 
   // The wrapper is the Gateway's only trusted proxy. Rebuild attribution from
   // the TCP peer instead of forwarding client-controlled proxy headers.
@@ -455,8 +520,8 @@ export async function startServer(runtime = createRuntime()) {
         }
         return json(res, 200, {
           ok: true, version: runtime.version, storage: storageStatus(runtime), publicOrigin: runtime.publicOrigin || null,
-          setup: readSetupState(runtime), providers: Object.keys(PROVIDERS), channels: [...CHANNELS],
-          gateway: { ready: await gatewayReady(runtime), lastError: runtime.lastGatewayError, lastExit: runtime.lastGatewayExit },
+          setup: readSetupState(runtime), providers: Object.keys(PROVIDERS), channels: Object.keys(CHANNELS),
+          gateway: { ready: await gatewayReady(runtime), running: Boolean(runtime.gateway && runtime.gateway.exitCode === null), pid: runtime.gateway?.pid || null, lastError: runtime.lastGatewayError, lastExit: runtime.lastGatewayExit },
         });
       }
       if (req.method === "POST" && url.pathname === "/setup/api/install") {
@@ -484,7 +549,31 @@ export async function startServer(runtime = createRuntime()) {
         try {
           const { action } = await readJson(req);
           if (action === "restart") { await restartGateway(runtime); return json(res, 200, { ok: true, output: "Gateway restarted and passed /startupz." }); }
-          const actions = { version: ["--version"], doctor: ["doctor", "--json"], status: ["gateway", "status"], devices: ["devices", "list"] };
+          if (action === "status") {
+            const ready = await gatewayReady(runtime);
+            return json(res, 200, { ok: ready, kind: "container-status", status: {
+              gatewayReady: ready,
+              processRunning: Boolean(runtime.gateway && runtime.gateway.exitCode === null),
+              pid: runtime.gateway?.pid || null,
+              endpoint: `${runtime.gatewayHost}:${runtime.gatewayPort}`,
+              exposure: "Loopback-only behind Railway HTTPS proxy",
+              publicOrigin: runtime.publicOrigin || null,
+              persistentState: storageStatus(runtime),
+              version: runtime.version,
+              lastError: runtime.lastGatewayError,
+              lastExit: runtime.lastGatewayExit,
+            }});
+          }
+          if (action === "doctor") {
+            const result = await command(runtime, ["doctor", "--json"]);
+            try {
+              const report = parseJsonOutput(result.output);
+              return json(res, 200, { ok: report.ok !== false, kind: "doctor", report, commandExitCode: result.code });
+            } catch {
+              return json(res, 500, { ok: false, error: result.output || `Doctor exited with code ${result.code}` });
+            }
+          }
+          const actions = { version: ["--version"], devices: ["devices", "list"] };
           if (!actions[action]) return json(res, 400, { ok: false, error: "Action is not allowed" });
           const result = await command(runtime, actions[action]);
           return json(res, result.code === 0 ? 200 : 500, { ok: result.code === 0, output: result.output || `Command exited with code ${result.code}` });

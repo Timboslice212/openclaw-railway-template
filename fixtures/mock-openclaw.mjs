@@ -1,4 +1,9 @@
 import http from "node:http";
+import fs from "node:fs";
+
+if (process.env.MOCK_COMMAND_LOG) {
+  fs.appendFileSync(process.env.MOCK_COMMAND_LOG, `${JSON.stringify(process.argv.slice(2))}\n`);
+}
 
 if (process.argv.includes("--version")) {
   console.log("OpenClaw 2026.9.2");
@@ -6,6 +11,11 @@ if (process.argv.includes("--version")) {
 }
 
 if (process.argv.includes("doctor")) {
+  console.log(JSON.stringify({ ok: false, checksRun: 2, checksSkipped: 0, findings: [{ severity: "warning", message: "mock advisory" }] }));
+  process.exit(1);
+}
+
+if (process.argv.includes("secrets")) {
   console.log(JSON.stringify({ ok: true, mock: true }));
   process.exit(0);
 }
@@ -55,6 +65,10 @@ const server = http.createServer((req, res) => {
   if (["/startupz", "/healthz", "/readyz"].includes(req.url)) {
     res.writeHead(200, { "content-type": "application/json" });
     return res.end('{"ok":true}');
+  }
+  if (req.url === "/auth-check") {
+    res.writeHead(200, { "content-type": "application/json" });
+    return res.end(JSON.stringify({ authorization: req.headers.authorization || null }));
   }
   res.writeHead(200, { "content-type": "text/plain" });
   res.end("mock gateway");
