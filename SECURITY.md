@@ -16,9 +16,8 @@ Include the affected commit, impact, realistic attack path, minimal reproduction
 - Keep the OpenClaw Gateway bound to `127.0.0.1:18789`.
 - Expose only the wrapper through Railway HTTPS and `PORT`.
 - Mount the persistent volume exactly at `/data` and restrict backup access.
-- Keep provider and channel credentials in OpenClaw's Secret Store.
+- Keep Railway project access and `/data` backups private; OpenClaw stores configured provider and channel credentials in its protected state on the persistent volume.
 - Review upstream OpenClaw security notes before upgrading.
 - Test fresh installs and existing-volume upgrades before publishing a template revision.
 
 This policy covers the Railway integration. Vulnerabilities in OpenClaw itself should also be reported according to the upstream project's security policy.
-
