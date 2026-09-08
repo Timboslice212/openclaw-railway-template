@@ -47,6 +47,10 @@ test("setup page ships valid JavaScript and never falls back to a GET form", () 
   assert.match(page, /<form id="setupForm" method="post" action="\/setup">/);
   assert.doesNotMatch(page, /<form id="setupForm">/);
   assert.match(page, /Configure provider later in OpenClaw/);
+  assert.match(page, /Channel access &amp; pairing/);
+  assert.match(page, /Settings → Channels → DM access requests/);
+  assert.match(page, /no terminal or Railway shell is required/i);
+  assert.doesNotMatch(page, /openclaw pairing approve/);
 });
 
 test("provider setup can be deferred without an API key", async () => {

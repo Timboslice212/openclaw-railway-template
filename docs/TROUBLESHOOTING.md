@@ -40,6 +40,17 @@ The wizard intentionally blocks configuration unless Railway reports a volume at
 - Run the OpenClaw Doctor diagnostic.
 - Do not manually paste Gateway tokens into URLs.
 
+## A channel sends a pairing code
+
+This is OpenClaw's normal DM access protection, not a deployment failure.
+
+1. Open the OpenClaw dashboard from the completed `/setup` page.
+2. Go to **Settings → Channels → DM access requests**.
+3. Review the channel, account, and sender, then select **Approve**.
+4. Send the bot a new message after approval.
+
+No terminal or Railway shell is required. Pairing grants direct-message access only; group access is configured separately. If the request has expired, message the bot again to create a new request.
+
 ## Data appears missing
 
 - Confirm the original volume is attached to the same service at `/data`.

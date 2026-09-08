@@ -48,8 +48,9 @@ Do not ask users to supply these values. Do not expose the internal Gateway port
 6. Open the public HTTPS domain and sign in with `SETUP_PASSWORD` without a username.
 7. Configure a test provider and model through the wizard, or choose **Configure provider later in OpenClaw**.
 8. Confirm provider validation when configured, Gateway startup, `/readyz`, and dashboard handoff succeed. Provider credentials remain in OpenClaw's private state on `/data`.
-9. Redeploy the same service and confirm configuration and workspace data persist.
-10. Back up the volume, test an upgrade separately, and record the result.
+9. For a channel using DM pairing, message the bot and approve the request from **Settings → Channels → DM access requests** in the OpenClaw dashboard. Confirm no terminal or Railway shell is needed.
+10. Redeploy the same service and confirm configuration and workspace data persist.
+11. Back up the volume, test an upgrade separately, and record the result.
 
 ## Rollback
 

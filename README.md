@@ -10,9 +10,9 @@
   [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white)](package.json)
   [![MIT License](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
 
-  <a href="https://railway.com/deploy/D_Kpn-"><img src="assets/deploy-placeholder.svg" width="240" alt="Deploy OpenClaw on Railway"></a>
+  <a href="https://railway.com/deploy/openclaw-secure-one-click-setup"><img src="assets/deploy-placeholder.svg" width="240" alt="Deploy OpenClaw on Railway"></a>
 
-  **[Deploy the published template on Railway](https://railway.com/deploy/D_Kpn-)**
+  **[Deploy OpenClaw on Railway](https://railway.com/deploy/openclaw-secure-one-click-setup)**
 
   [Deployment guide](docs/DEPLOYMENT.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 </div>
@@ -24,7 +24,7 @@
 This project packages the official, version-pinned [OpenClaw](https://github.com/openclaw/openclaw) image with a secure Railway control layer. Configure the AI provider from a protected browser wizard, launch the official dashboard, and keep configuration, credentials, and workspace files on a persistent `/data` volume.
 
 - **Modern OpenClaw:** pinned to a reviewed upstream release instead of a moving `latest` tag.
-- **Browser-first setup:** configure a provider, model, and optional channel without a Railway shell.
+- **Browser-only setup:** configure a provider, model, channel, and DM access without a terminal or Railway shell.
 - **Persistent by design:** setup refuses to claim success unless the `/data` volume is mounted.
 - **Secure handoff:** the Gateway stays on loopback and OpenClaw issues a short-lived browser bootstrap.
 - **Operationally ready:** health checks, bounded commands, redaction, non-root runtime, CI, and recovery diagnostics.
@@ -43,7 +43,7 @@ The public service listens on Railway's `PORT`. It serves the protected setup in
 
 ## One-click deployment
 
-1. Open the [published Railway template](https://railway.com/deploy/D_Kpn-).
+1. Open the [OpenClaw Railway template](https://railway.com/deploy/openclaw-secure-one-click-setup).
 2. Railway asks for exactly one value: `SETUP_PASSWORD`.
 3. Deploy the service, volume, variables, public domain, and `/healthz` check.
 4. Open the generated domain and unlock the setup wizard.
@@ -84,9 +84,21 @@ After Railway reports the deployment as healthy:
 4. Enter the provider API key and optionally override the default model, or choose **Configure provider later in OpenClaw**.
 5. Optionally connect Telegram or Discord.
 6. Select **Configure & validate OpenClaw**. The wizard runs official onboarding, validates configuration, performs a provider probe, and waits for Gateway readiness. If provider setup was deferred, it starts the Gateway directly and leaves provider configuration to OpenClaw Settings.
-7. Select **Launch secure dashboard** to complete the browser handoff.
+7. Select **Open dashboard & complete pairing** to complete the browser handoff.
 
 After first run, manage providers, agents, skills, and channels in the official OpenClaw dashboard. The setup page remains available for status and recovery diagnostics.
+
+### Channel access and pairing
+
+Telegram, Discord, and other channels can protect direct messages with OpenClaw's pairing policy. No terminal is required:
+
+1. Open the OpenClaw dashboard from the completed setup page.
+2. Send your bot a message to create an access request.
+3. Go to **Settings → Channels → DM access requests**.
+4. Review the sender and select **Approve**. You can optionally notify the requester.
+5. Send the bot a new message after approval.
+
+Pairing grants direct-message access; group permissions remain separate. If a request expires, message the bot again to create a new one.
 
 ## Features
 
@@ -96,6 +108,7 @@ After first run, manage providers, agents, skills, and channels in the official 
 - Persistent state, workspace, configuration, and cache below `/data`
 - Live provider validation before setup completes
 - Optional Telegram and Discord credential probes
+- Browser-only channel pairing guidance using OpenClaw's official DM access request screen
 - Generated Gateway token with restrictive file permissions
 - Native OpenClaw credential storage on the private persistent volume
 - CSRF protection, login throttling, security headers, and redacted diagnostics
