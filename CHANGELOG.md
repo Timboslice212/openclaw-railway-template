@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 - 2026-09-08
+
+- Store first-run provider credentials as SecretRefs from the start, preventing plaintext auth-profile residue during setup.
+- Allow users to defer provider configuration and launch the OpenClaw dashboard without an API key.
+- Clarify that `SETUP_PASSWORD` must contain at least 12 characters.
+
 Notable changes to this Railway integration are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
@@ -23,4 +29,3 @@ Notable changes to this Railway integration are documented here. The format foll
 
 [Unreleased]: https://github.com/Timboslice212/openclaw-railway-template/compare/5c0a1533e558daf0e759e9b7d2a7031a0d82bf2e...HEAD
 [1.0.0]: https://github.com/Timboslice212/openclaw-railway-template/commit/5c0a1533e558daf0e759e9b7d2a7031a0d82bf2e
-
