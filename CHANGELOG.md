@@ -18,4 +18,4 @@ Notable user-facing changes to this Railway integration are documented here. Dev
 - Professional project documentation, contribution guidance, security policy, support templates, and visual assets.
 - Automated local Markdown-link validation in CI.
 
-[1.2.0]: https://github.com/Timboslice212/openclaw-railway-template/releases/tag/v1.2.0
+[1.2.0]: https://github.com/Timboslice212/openclaw-railway-template/tree/13cd1a3fc593aac72d7f2353690a8e635f960724
