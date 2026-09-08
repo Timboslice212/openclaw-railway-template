@@ -10,9 +10,9 @@
   [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white)](package.json)
   [![MIT License](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
 
-  <a href="https://railway.com/deploy/openclaw-secure-one-click-setup"><img src="assets/deploy-placeholder.svg" width="240" alt="Deploy OpenClaw on Railway"></a>
+  <a href="https://railway.com/deploy/D_Kpn-"><img src="assets/deploy-placeholder.svg" width="240" alt="Deploy OpenClaw on Railway"></a>
 
-  **[Deploy the published template on Railway](https://railway.com/deploy/openclaw-secure-one-click-setup)**
+  **[Deploy the published template on Railway](https://railway.com/deploy/D_Kpn-)**
 
   [Deployment guide](docs/DEPLOYMENT.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 </div>
@@ -43,7 +43,7 @@ The public service listens on Railway's `PORT`. It serves the protected setup in
 
 ## One-click deployment
 
-1. Open the [published Railway template](https://railway.com/deploy/openclaw-secure-one-click-setup).
+1. Open the [published Railway template](https://railway.com/deploy/D_Kpn-).
 2. Railway asks for exactly one value: `SETUP_PASSWORD`.
 3. Deploy the service, volume, variables, public domain, and `/healthz` check.
 4. Open the generated domain and unlock the setup wizard.
@@ -83,7 +83,7 @@ After Railway reports the deployment as healthy:
 3. Select OpenAI, Anthropic, Google Gemini, OpenRouter, or xAI.
 4. Enter the provider API key and optionally override the default model, or choose **Configure provider later in OpenClaw**.
 5. Optionally connect Telegram or Discord.
-6. Select **Configure & validate OpenClaw**. The wizard runs reference-first official onboarding, validates configuration, performs a provider probe, protects credentials with SecretRefs, and waits for Gateway readiness. If provider setup was deferred, it starts the Gateway directly and leaves provider configuration to OpenClaw Settings.
+6. Select **Configure & validate OpenClaw**. The wizard runs official onboarding, validates configuration, performs a provider probe, and waits for Gateway readiness. If provider setup was deferred, it starts the Gateway directly and leaves provider configuration to OpenClaw Settings.
 7. Select **Launch secure dashboard** to complete the browser handoff.
 
 After first run, manage providers, agents, skills, and channels in the official OpenClaw dashboard. The setup page remains available for status and recovery diagnostics.
@@ -97,7 +97,7 @@ After first run, manage providers, agents, skills, and channels in the official 
 - Live provider validation before setup completes
 - Optional Telegram and Discord credential probes
 - Generated Gateway token with restrictive file permissions
-- OpenClaw Secret Store migration and secret audit
+- Native OpenClaw credential storage on the private persistent volume
 - CSRF protection, login throttling, security headers, and redacted diagnostics
 - Root used only to initialize a fresh volume; application processes run as UID/GID 1000
 - Mock-based tests that do not contact an AI provider
