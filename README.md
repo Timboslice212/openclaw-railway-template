@@ -10,9 +10,9 @@
   [![Node.js 24+](https://img.shields.io/badge/Node.js-24%2B-339933?logo=nodedotjs&logoColor=white)](package.json)
   [![MIT License](https://img.shields.io/badge/License-MIT-22c55e.svg)](LICENSE)
 
-  <a href="https://railway.com/deploy/D_Kpn-"><img src="assets/deploy-placeholder.svg" width="240" alt="Deploy OpenClaw on Railway"></a>
+  <a href="https://railway.com/deploy/openclaw-secure-one-click-setup"><img src="assets/deploy-placeholder.svg" width="240" alt="Deploy OpenClaw on Railway"></a>
 
-  **[Deploy the published template on Railway](https://railway.com/deploy/D_Kpn-)**
+  **[Deploy the published template on Railway](https://railway.com/deploy/openclaw-secure-one-click-setup)**
 
   [Deployment guide](docs/DEPLOYMENT.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 </div>
@@ -43,7 +43,7 @@ The public service listens on Railway's `PORT`. It serves the protected setup in
 
 ## One-click deployment
 
-1. Open the [published Railway template](https://railway.com/deploy/D_Kpn-).
+1. Open the [published Railway template](https://railway.com/deploy/openclaw-secure-one-click-setup).
 2. Railway asks for exactly one value: `SETUP_PASSWORD`.
 3. Deploy the service, volume, variables, public domain, and `/healthz` check.
 4. Open the generated domain and unlock the setup wizard.
