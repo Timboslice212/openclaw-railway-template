@@ -25,6 +25,7 @@ const CHANNELS = Object.freeze({
   telegram: { secretName: "OPENCLAW_RAILWAY_TELEGRAM_TOKEN", path: "channels.telegram.botToken", hosts: ["api.telegram.org"] },
   discord: { secretName: "OPENCLAW_RAILWAY_DISCORD_TOKEN", path: "channels.discord.token", hosts: ["discord.com", "gateway.discord.gg"] },
 });
+const PROVIDER_SECRET_NAME = "OPENCLAW_RAILWAY_PROVIDER_API_KEY";
 
 export function parsePort(value, fallback) {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -200,9 +201,8 @@ async function storeSecret(runtime, name, value, hosts = []) {
 }
 
 async function migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, channel, channelToken }) {
-  const providerSecretName = "OPENCLAW_RAILWAY_PROVIDER_API_KEY";
   const gatewaySecretName = "OPENCLAW_RAILWAY_GATEWAY_TOKEN";
-  await storeSecret(runtime, providerSecretName, apiKey, providerConfig.hosts);
+  await storeSecret(runtime, PROVIDER_SECRET_NAME, apiKey, providerConfig.hosts);
   await storeSecret(runtime, gatewaySecretName, runtime.gatewayToken);
 
   const storeRef = (id) => ({ source: "store", provider: "default", id });
@@ -213,7 +213,7 @@ async function migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, 
       pathSegments: ["profiles", `${provider}:default`, "key"],
       agentId: "main",
       authProfileProvider: provider,
-      ref: storeRef(providerSecretName),
+      ref: storeRef(PROVIDER_SECRET_NAME),
     },
     {
       type: "gateway.auth.token",
@@ -240,12 +240,26 @@ async function migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, 
   fs.renameSync(temporary, planPath);
   const applied = await command(runtime, ["secrets", "apply", "--from", planPath, "--json"], { timeoutMs: 60_000 });
   if (applied.code !== 0) throw new Error(`Could not migrate credentials to SecretRefs: ${applied.output}`);
-  const audit = await command(runtime, ["secrets", "audit", "--check", "--json"], { timeoutMs: 60_000 });
+  const audit = await command(runtime, ["secrets", "audit", "--check", "--json"], {
+    timeoutMs: 60_000,
+    env: { [providerConfig.envVar]: apiKey },
+    secrets: [apiKey],
+  });
   if (audit.code !== 0) throw new Error(`Secret audit did not pass: ${audit.output}`);
 }
 
+async function loadProviderEnvironment(runtime) {
+  const provider = String(readSetupState(runtime).provider || "").toLowerCase();
+  const providerConfig = PROVIDERS[provider];
+  if (!providerConfig) return {};
+  const stored = await command(runtime, ["secrets", "store", "get", PROVIDER_SECRET_NAME], { timeoutMs: 30_000 });
+  const apiKey = stored.code === 0 ? stored.output.trim() : "";
+  if (!apiKey) throw new Error("The configured provider credential could not be loaded from OpenClaw Secret Store");
+  return { [providerConfig.envVar]: apiKey };
+}
+
 async function finishUnconfiguredSetup(runtime) {
-  writeSetupState(runtime, { status: "running", step: "gateway", error: null });
+  writeSetupState(runtime, { status: "running", step: "gateway", provider: null, model: null, channel: null, providerDeferred: true, error: null });
   await stopGateway(runtime);
   await startGateway(runtime);
   return writeSetupState(runtime, {
@@ -269,6 +283,7 @@ async function startGateway(runtime) {
     const executable = process.env.OPENCLAW_NODE || "node";
     const entry = process.env.OPENCLAW_ENTRY || "/app/openclaw.mjs";
     const args = [entry, "gateway", "run", "--allow-unconfigured", "--bind", "loopback", "--port", String(runtime.gatewayPort), "--auth", "token", "--token", runtime.gatewayToken];
+    const providerEnv = await loadProviderEnvironment(runtime);
     const child = spawn(executable, args, {
       env: {
         ...process.env,
@@ -276,6 +291,7 @@ async function startGateway(runtime) {
         OPENCLAW_WORKSPACE_DIR: runtime.workspaceDir,
         OPENCLAW_GATEWAY_TOKEN: runtime.gatewayToken,
         XDG_CONFIG_HOME: runtime.configDir,
+        ...providerEnv,
       },
       stdio: "inherit",
     });
@@ -351,7 +367,7 @@ async function runFirstSetup(runtime, input) {
   }
 
   runtime.setupRun = (async () => {
-    writeSetupState(runtime, { status: "running", step: "provider", error: null });
+    writeSetupState(runtime, { status: "running", step: "provider", provider, error: null });
     await stopGateway(runtime);
     const onboarding = await command(runtime, [
       "onboard", "--non-interactive", "--accept-risk",
@@ -389,7 +405,7 @@ async function runFirstSetup(runtime, input) {
     const modelStatus = await command(runtime, [
       "models", "status", "--probe", "--check", "--probe-provider", provider,
       "--probe-timeout", "30000", "--probe-max-tokens", "8", "--json",
-    ], { timeoutMs: 60_000 });
+    ], { timeoutMs: 60_000, env: { [providerConfig.envVar]: apiKey }, secrets: [apiKey] });
     if (modelStatus.code !== 0) throw new Error(`Model readiness check failed: ${modelStatus.output}`);
 
     writeSetupState(runtime, { step: "gateway" });
