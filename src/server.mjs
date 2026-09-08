@@ -244,6 +244,16 @@ async function migrateSetupSecrets(runtime, { provider, providerConfig, apiKey, 
   if (audit.code !== 0) throw new Error(`Secret audit did not pass: ${audit.output}`);
 }
 
+async function finishUnconfiguredSetup(runtime) {
+  writeSetupState(runtime, { status: "running", step: "gateway", error: null });
+  await stopGateway(runtime);
+  await startGateway(runtime);
+  return writeSetupState(runtime, {
+    status: "complete", step: "complete", completedAt: new Date().toISOString(),
+    provider: null, model: null, channel: null, providerDeferred: true,
+  });
+}
+
 async function configureMemory(runtime, provider) {
   const enabled = provider === "openai";
   const result = await command(runtime, ["config", "set", "memory.search.enabled", String(enabled), "--strict-json"], { timeoutMs: 30_000 });
@@ -317,8 +327,10 @@ async function runFirstSetup(runtime, input) {
   const model = String(input.model || "").trim();
   const channel = String(input.channel || "none").toLowerCase();
   const channelToken = String(input.channelToken || "").trim();
-  if (!providerConfig) throw new Error("Choose a supported AI provider");
-  if (apiKey.length < 8 || apiKey.length > 16_384) throw new Error("Enter a valid provider API key");
+  const providerDeferred = provider === "none";
+  if (!providerDeferred && !providerConfig) throw new Error("Choose a supported AI provider");
+  if (!providerDeferred && (apiKey.length < 8 || apiKey.length > 16_384)) throw new Error("Enter a valid provider API key");
+  if (providerDeferred && (model || channel !== "none" || channelToken)) throw new Error("Configure the provider before adding a model or messaging channel");
   if (model && (!/^[A-Za-z0-9._:/+-]{2,240}$/.test(model) || !model.startsWith(`${provider}/`))) {
     throw new Error(`Model must use the ${provider}/model-id format`);
   }
@@ -328,13 +340,23 @@ async function runFirstSetup(runtime, input) {
   if (!storage.persistent || !storage.writable) throw new Error("A writable Railway volume mounted at /data is required before setup can continue");
   if (!runtime.publicOrigin) throw new Error("A Railway public domain is required before setup can continue");
 
+  if (providerDeferred) {
+    runtime.setupRun = finishUnconfiguredSetup(runtime)
+      .catch((error) => {
+        writeSetupState(runtime, { status: "failed", error: redact(String(error), []) });
+        throw error;
+      })
+      .finally(() => { runtime.setupRun = null; });
+    return runtime.setupRun;
+  }
+
   runtime.setupRun = (async () => {
     writeSetupState(runtime, { status: "running", step: "provider", error: null });
     await stopGateway(runtime);
     const onboarding = await command(runtime, [
       "onboard", "--non-interactive", "--accept-risk",
       "--auth-choice", providerConfig.authChoice,
-      "--secret-input-mode", "plaintext",
+      "--secret-input-mode", "ref",
       "--workspace", runtime.workspaceDir,
       "--gateway-bind", "loopback",
       "--gateway-port", String(runtime.gatewayPort),
