@@ -46,6 +46,55 @@ test("setup page ships valid JavaScript and never falls back to a GET form", () 
   assert.doesNotThrow(() => new vm.Script(script));
   assert.match(page, /<form id="setupForm" method="post" action="\/setup">/);
   assert.doesNotMatch(page, /<form id="setupForm">/);
+  assert.match(page, /Configure provider later in OpenClaw/);
+});
+
+test("provider setup can be deferred without an API key", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "openclaw-railway-deferred-"));
+  const original = { ...process.env };
+  process.env.OPENCLAW_NODE = process.execPath;
+  process.env.OPENCLAW_ENTRY = path.join(projectRoot, "fixtures", "mock-openclaw.mjs");
+  process.env.PORT = "0";
+  process.env.OPENCLAW_INTERNAL_GATEWAY_PORT = String(30_000 + Math.floor(Math.random() * 10_000));
+  process.env.OPENCLAW_STATE_DIR = path.join(root, "state");
+  process.env.OPENCLAW_WORKSPACE_DIR = path.join(root, "workspace");
+  process.env.XDG_CONFIG_HOME = path.join(root, "config");
+  process.env.SETUP_PASSWORD = "test-password";
+  process.env.OPENCLAW_GATEWAY_TOKEN = "test-gateway-token";
+  process.env.RAILWAY_PUBLIC_DOMAIN = "example.test";
+  process.env.RAILWAY_VOLUME_MOUNT_PATH = "/data";
+  process.env.MOCK_COMMAND_LOG = path.join(root, "commands.log");
+
+  const runtime = createRuntime(process.env);
+  runtime.publicPort = 0;
+  const app = await startServer(runtime);
+  const base = `http://127.0.0.1:${app.server.address().port}`;
+  try {
+    const login = await fetch(`${base}/login`, {
+      method: "POST", redirect: "manual",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ password: "test-password" }),
+    });
+    const cookie = login.headers.get("set-cookie").split(";", 1)[0];
+    const installed = await fetch(`${base}/setup/api/install`, {
+      method: "POST",
+      headers: { cookie, origin: "https://example.test", "content-type": "application/json" },
+      body: JSON.stringify({ provider: "none", channel: "none" }),
+    });
+    assert.equal(installed.status, 200, await installed.text());
+    const status = await fetch(`${base}/setup/api/status`, { headers: { cookie } });
+    const state = (await status.json()).setup;
+    assert.equal(state.status, "complete");
+    assert.equal(state.providerDeferred, true);
+    const commands = fs.readFileSync(process.env.MOCK_COMMAND_LOG, "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(commands.some((args) => args.includes("onboard")), false);
+    assert.equal(commands.some((args) => args.includes("gateway")), true);
+  } finally {
+    await app.close();
+    fs.rmSync(root, { recursive: true, force: true });
+    for (const key of Object.keys(process.env)) if (!(key in original)) delete process.env[key];
+    Object.assign(process.env, original);
+  }
 });
 
 test("control center starts, protects setup, and proxies to gateway", async () => {
@@ -124,6 +173,11 @@ test("control center starts, protects setup, and proxies to gateway", async () =
     });
     const installedText = await installed.text();
     assert.equal(installed.status, 200, installedText);
+
+    const commandLines = fs.readFileSync(process.env.MOCK_COMMAND_LOG, "utf8").trim().split("\n").map(JSON.parse);
+    const onboarding = commandLines.find((args) => args.includes("onboard"));
+    assert.ok(onboarding, "provider setup must run OpenClaw onboarding");
+    assert.equal(onboarding[onboarding.indexOf("--secret-input-mode") + 1], "ref");
 
     const handoffResponse = await fetch(`${base}/setup/api/handoff`, {
       method: "POST", headers: { cookie: sessionCookie, origin: "https://example.test", "content-type": "application/json" }, body: "{}",
