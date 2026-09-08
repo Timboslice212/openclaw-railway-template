@@ -20,7 +20,7 @@ Railway Template Composer must show **1 variable value needed** before deploymen
 | Name | `SETUP_PASSWORD` |
 | Required | Yes |
 | Default | Empty |
-| Description | Choose a strong password to unlock the secure setup dashboard. No username required. |
+| Description | Choose a strong password with at least 12 characters to unlock the secure setup dashboard. No username required. |
 
 `.railway/railway.ts` uses `preserve()` for this variable, but that alone does not make the Composer field required. Configure it manually in Composer.
 
@@ -46,12 +46,11 @@ Do not ask users to supply these values. Do not expose the internal Gateway port
 4. Confirm the volume is mounted at `/data`.
 5. Confirm Railway reports `/healthz` healthy and the service listens on the assigned `PORT`.
 6. Open the public HTTPS domain and sign in with `SETUP_PASSWORD` without a username.
-7. Configure a test provider and model through the wizard.
-8. Confirm provider validation, Gateway startup, `/readyz`, and dashboard handoff succeed.
+7. Configure a test provider and model through the wizard, or choose **Configure provider later in OpenClaw**.
+8. Confirm provider validation when configured, Gateway startup, `/readyz`, and dashboard handoff succeed.
 9. Redeploy the same service and confirm configuration and workspace data persist.
 10. Back up the volume, test an upgrade separately, and record the result.
 
 ## Rollback
 
 Keep a backup of `/data` and record the last known-good repository commit and OpenClaw image version. Application code can be rolled back to that commit, but state migrations may not be reversible. Follow upstream release guidance before attaching newer state to an older image.
-
