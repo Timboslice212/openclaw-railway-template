@@ -3,6 +3,7 @@
 ## 1.1.0 - 2026-09-08
 
 - Store first-run provider credentials as SecretRefs from the start, preventing plaintext auth-profile residue during setup.
+- Resolve temporary environment SecretRefs during audit and provider probes, then reload credentials from Secret Store for Gateway restarts and redeployments.
 - Allow users to defer provider configuration and launch the OpenClaw dashboard without an API key.
 - Clarify that `SETUP_PASSWORD` must contain at least 12 characters.
 
