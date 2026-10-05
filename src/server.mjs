@@ -186,6 +186,13 @@ async function configureGateway(runtime) {
     settings.push(["plugins.entries.device-pair.enabled", "true", "--strict-json"]);
     settings.push(["plugins.entries.device-pair.config.publicUrl", pairingUrl.toString()]);
   }
+  // This branch is dedicated to the geo-scout pilot. Enforce its tool boundary
+  // before the Gateway starts; workspace prose alone is not an access policy.
+  const geoScout = await command(runtime, ["config", "get", "agents.entries.geo-scout", "--json"], { timeoutMs: 30_000 });
+  if (geoScout.code !== 0) throw new Error("geo-scout agent is missing; refusing to start the pilot without its tool policy");
+  settings.push(["agents.entries.geo-scout.tools.allow", JSON.stringify(["web_search", "web_fetch", "browser"]), "--strict-json"]);
+  settings.push(["agents.entries.geo-scout.tools.deny", JSON.stringify(["exec", "process", "read", "write", "edit", "apply_patch", "message", "cron", "gateway", "openclaw", "nodes", "sessions_spawn"]), "--strict-json"]);
+
   for (const args of settings) {
     const result = await command(runtime, ["config", "set", ...args], { timeoutMs: 30_000 });
     if (result.code !== 0) throw new Error(`Could not configure ${args[0]}: ${result.output}`);
