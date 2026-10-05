@@ -3,7 +3,7 @@
 # Pin the official stable OpenClaw image. Release tags intentionally omit the
 # leading "v" used by GitHub releases.
 ARG OPENCLAW_VERSION=2026.9.2
-FROM ghcr.io/openclaw/openclaw:${OPENCLAW_VERSION}
+FROM ghcr.io/openclaw/openclaw:${OPENCLAW_VERSION}-browser
 
 USER root
 WORKDIR /opt/openclaw-railway
