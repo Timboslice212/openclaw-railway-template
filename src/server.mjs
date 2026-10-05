@@ -195,7 +195,21 @@ async function configureGateway(runtime) {
   settings.push(["agents.entries.geo-scout.models", JSON.stringify({ "openai/gpt-5.6-sol": { agentRuntime: { id: "openclaw" } } }), "--strict-json"]);
   settings.push(["browser.headless", "true", "--strict-json"]);
   settings.push(["browser.noSandbox", "true", "--strict-json"]);
-  settings.push(["agents.entries.geo-scout.tools.allow", JSON.stringify(["web_search", "web_fetch", "browser"]), "--strict-json"]);
+  // SerpApi's hosted MCP endpoint accepts header auth. OpenClaw expands the
+  // Railway environment reference at runtime; the API key is never persisted.
+  if (process.env.SERPAPI_API_KEY) {
+    settings.push(["mcp.servers.serpapi", JSON.stringify({
+      url: "https://mcp.serpapi.com/mcp",
+      transport: "streamable-http",
+      headers: { Authorization: "Bearer ${SERPAPI_API_KEY}" },
+      toolFilter: { include: ["search"] },
+      requestTimeoutMs: 60000,
+      connectionTimeoutMs: 10000,
+    }), "--strict-json"]);
+  } else {
+    console.warn("[railway] SERPAPI_API_KEY is not configured; SerpApi search is unavailable");
+  }
+  settings.push(["agents.entries.geo-scout.tools.allow", JSON.stringify(["web_search", "web_fetch", "browser", "serpapi__search"]), "--strict-json"]);
   settings.push(["agents.entries.geo-scout.tools.deny", JSON.stringify(["exec", "process", "read", "write", "edit", "apply_patch", "message", "cron", "gateway", "openclaw", "nodes", "sessions_spawn"]), "--strict-json"]);
 
   for (const args of settings) {
