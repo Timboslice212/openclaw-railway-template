@@ -23,7 +23,8 @@ ENV NODE_ENV=production \
     OPENCLAW_STATE_DIR=/data/.openclaw \
     OPENCLAW_WORKSPACE_DIR=/data/workspace \
     XDG_CONFIG_HOME=/data/.config \
-    XDG_CACHE_HOME=/data/.cache
+    XDG_CACHE_HOME=/data/.cache \
+    PLAYWRIGHT_BROWSERS_PATH=/home/node/.cache/ms-playwright
 
 EXPOSE 8080
 
