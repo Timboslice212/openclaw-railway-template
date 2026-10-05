@@ -193,6 +193,8 @@ async function configureGateway(runtime) {
   // The pinned OpenAI Responses route otherwise selects the Codex harness,
   // whose app-server binary is not present in this Railway image.
   settings.push(["agents.entries.geo-scout.models", JSON.stringify({ "openai/gpt-5.6-sol": { agentRuntime: { id: "openclaw" } } }), "--strict-json"]);
+  settings.push(["browser.headless", "true", "--strict-json"]);
+  settings.push(["browser.noSandbox", "true", "--strict-json"]);
   settings.push(["agents.entries.geo-scout.tools.allow", JSON.stringify(["web_search", "web_fetch", "browser"]), "--strict-json"]);
   settings.push(["agents.entries.geo-scout.tools.deny", JSON.stringify(["exec", "process", "read", "write", "edit", "apply_patch", "message", "cron", "gateway", "openclaw", "nodes", "sessions_spawn"]), "--strict-json"]);
 
@@ -435,7 +437,9 @@ function proxyUpgrade(req, socket, head, runtime) {
   headers.connection = "Upgrade";
   headers.upgrade = "websocket";
   const upstream = http.request({ hostname: runtime.gatewayHost, port: runtime.gatewayPort, path: req.url, method: req.method, headers });
+  socket.on("error", () => upstream.destroy());
   upstream.on("upgrade", (response, upstreamSocket, upstreamHead) => {
+    upstreamSocket.on("error", () => socket.destroy());
     let raw = `HTTP/1.1 ${response.statusCode} ${response.statusMessage}\r\n`;
     for (const [name, value] of Object.entries(response.headers)) raw += `${name}: ${Array.isArray(value) ? value.join(", ") : value}\r\n`;
     socket.write(`${raw}\r\n`);
