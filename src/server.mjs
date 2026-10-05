@@ -190,6 +190,9 @@ async function configureGateway(runtime) {
   // before the Gateway starts; workspace prose alone is not an access policy.
   const geoScout = await command(runtime, ["config", "get", "agents.entries.geo-scout", "--json"], { timeoutMs: 30_000 });
   if (geoScout.code !== 0) throw new Error("geo-scout agent is missing; refusing to start the pilot without its tool policy");
+  // The pinned OpenAI Responses route otherwise selects the Codex harness,
+  // whose app-server binary is not present in this Railway image.
+  settings.push(["agents.entries.geo-scout.models", JSON.stringify({ "openai/gpt-5.6-sol": { agentRuntime: { id: "openclaw" } } }), "--strict-json"]);
   settings.push(["agents.entries.geo-scout.tools.allow", JSON.stringify(["web_search", "web_fetch", "browser"]), "--strict-json"]);
   settings.push(["agents.entries.geo-scout.tools.deny", JSON.stringify(["exec", "process", "read", "write", "edit", "apply_patch", "message", "cron", "gateway", "openclaw", "nodes", "sessions_spawn"]), "--strict-json"]);
 
